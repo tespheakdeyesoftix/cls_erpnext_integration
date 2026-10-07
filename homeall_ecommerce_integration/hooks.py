@@ -1,5 +1,5 @@
 app_name = "homeall_ecommerce_integration"
-app_title = "Homeall Ecommerce Integration"
+app_title = "Homeall"
 app_publisher = "Tes Pheakdey"
 app_description = "API integration app for homeall and erpnext "
 app_email = "pheakdey.micronet@gmail.com"
@@ -15,15 +15,15 @@ use_json_request_body = True
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "homeall_ecommerce_integration",
-# 		"logo": "/assets/homeall_ecommerce_integration/logo.png",
-# 		"title": "Homeall Ecommerce Integration",
-# 		"route": "/homeall_ecommerce_integration",
-# 		"has_permission": "homeall_ecommerce_integration.api.permission.has_app_permission",
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": app_name,
+		"logo": "/assets/homeall_ecommerce_integration/icons/logo.jpg",
+		"title": app_title,
+		"route": "/desk/sync-history",
+		# "has_permission": "homeall_ecommerce_integration.api.permission.has_app_permission",
+	}
+]
 
 # The dock, the rail down the left of the desk, is a document rather than a hook. Author it in
 # Manage Dock on a developer-mode site and press Export to App, and it is written to
@@ -65,6 +65,10 @@ use_json_request_body = True
 # ------------------
 # include app icons in desk
 # app_include_icons = "homeall_ecommerce_integration/public/icons.svg"
+app_include_icons = [
+	"/assets/homeall_ecommerce_integration/icons/logo.jpg",
+]
+
 
 # Home Pages
 # ----------
@@ -188,6 +192,21 @@ use_json_request_body = True
 # 		"on_trash": "method"
 # 	}
 # }
+SYNC_DOCTYPES = [
+    "Brand",
+    "Business Type",
+    "Business Profile",
+    "Item Group",
+    "Item",
+]
+
+doc_events = {
+    doctype: {
+        "after_insert": "homeall_ecommerce_integration.controller.update_sync_status",
+        "on_update": "homeall_ecommerce_integration.controller.update_sync_status",
+    }
+    for doctype in SYNC_DOCTYPES
+}
 
 # Scheduled Tasks
 # ---------------

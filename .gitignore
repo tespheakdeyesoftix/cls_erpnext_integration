@@ -35,6 +35,7 @@ venv.bak/
 # Dependency directories
 node_modules/
 jspm_packages/
+homeall_ecommerce_integration/public/node_modules
 
 # IDEs and editors
 .vscode/

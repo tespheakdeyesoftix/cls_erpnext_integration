@@ -1,0 +1,155 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "autoname": "UUID",
+ "creation": "2026-09-19 15:00:53.257593",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "business_type",
+  "business_name",
+  "phone",
+  "email",
+  "address",
+  "column_break_ytrm",
+  "sort_order",
+  "is_record_new",
+  "is_publish",
+  "is_feature",
+  "disabled",
+  "photo",
+  "section_break_ziln",
+  "description",
+  "integration_tab",
+  "is_synced"
+ ],
+ "fields": [
+  {
+   "fieldname": "business_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Business Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Phone"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "column_break_ytrm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_record_new",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is New"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_publish",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Publish"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_feature",
+   "fieldtype": "Check",
+   "label": "Is Feature"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "integration_tab",
+   "fieldtype": "Tab Break",
+   "label": "Integration"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_synced",
+   "fieldtype": "Check",
+   "label": "Is Synced",
+   "read_only": 1
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "Photo"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_ziln",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "business_type",
+   "fieldtype": "Link",
+   "label": "Business Type",
+   "options": "Business Type",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "image_field": "photo",
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-19 15:45:04.092136",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "Business Profile",
+ "naming_rule": "UUID",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "business_name,phone,description",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "business_name"
+}

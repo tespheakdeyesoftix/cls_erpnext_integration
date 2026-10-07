@@ -1,0 +1,12 @@
+{
+  "name": "homeall-ecommerce-integration",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node scripts/patch-frappe-ui.mjs"
+  },
+  "dependencies": {
+    "frappe-ui": "0.1.50",
+    "vue-router": "4.1.6"
+  }
+}
