@@ -308,6 +308,10 @@ doc_events = {
 # 	"homeall_ecommerce_integration.auth.validate"
 # ]
 
+fixtures = [
+    {"dt": "Custom Field"},
+]
+
 # Automatically update python controller files with type annotations for this app.
 export_python_type_annotations = True
 
