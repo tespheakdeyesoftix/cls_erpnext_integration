@@ -447,6 +447,9 @@ def prepare_item_group_data(item_group, supabase_id, parent_supabase_id):
 
 # prepare data of item to product
 def item_to_product(item, supabase_id, currency):
+    if not item.custom_business_profile:
+        return None
+    
     files = frappe.get_all(
         "File",
         filters={
@@ -463,7 +466,7 @@ def item_to_product(item, supabase_id, currency):
         
 
     modified = get_datetime(item.modified)
-
+    
     data = {
         "id": str(supabase_id) if supabase_id else None,
         "item_group_id": str(item.item_group_id) if item.item_group_id else None,
@@ -478,12 +481,13 @@ def item_to_product(item, supabase_id, currency):
         "price": float(item.standard_rate or 0),
         "currency": currency, 
         "photos":photo_urls,
-        "business_id": "65bac850-eed4-411f-8877-b84f1bbcd8ce",
+        "business_id": item.custom_business_profile,
         "erp_modified_at": modified.isoformat(),
         "is_new": bool(item.custom_is_new),
         "is_feature": bool(item.custom_is_feature),
         "is_publish": bool(item.custom_is_publish),
         "is_popular": bool(item.custom_is_popular),
     } 
+    
     
     return data
