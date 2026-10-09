@@ -480,6 +480,10 @@ def prepare_brand_data(record, supabase_id):
 
 # prepare data of item group
 def prepare_item_group_data(item_group, supabase_id, parent_supabase_id):
+    if item_group.image:
+        if item_group.image.startswith("/files/") or item_group.image.startswith("/private/files/") or item_group.image.startswith("/api/method/frappe_s3_attachment"):
+            item_group.image = f"https://cloudsvr01.homeall.asia{item_group.image}"
+            
     data = {
         "id": supabase_id,
         "parent_id": parent_supabase_id,
@@ -510,11 +514,18 @@ def item_to_product(item, supabase_id, currency):
     photo_urls = []
     for f in files:
         if f.file_url:
+            if f.file_url.startswith("/files/") or f.file_url.startswith("/private/files/") or f.file_url.startswith("/api/method/frappe_s3_attachment"):
+                f.file_url = f"https://cloudsvr01.homeall.asia{f.file_url}" 
+                
             photo_urls.append(str(f.file_url))
         
 
     modified = get_datetime(item.modified)
     
+    if item.image:
+        if item.image.startswith("/files/") or item.image.startswith("/private/files/") or item.image.startswith("/api/method/frappe_s3_attachment"):
+            item.image = f"https://cloudsvr01.homeall.asia{item.image}"
+            
     data = {
         "id": str(supabase_id) if supabase_id else None,
         "item_group_id": str(item.item_group_id) if item.item_group_id else None,
