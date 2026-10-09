@@ -26,4 +26,20 @@ def  update_sync_status(doc: Document, method: str):
         if doc.get("custom_is_synced") == 1: 
             doc.db_set("custom_is_synced", 0)
         
-    
+@frappe.whitelist()
+def update_item(doc: Document, method: str):
+    if doc.doctype == "Item Price": 
+        if doc.price_list == "Standard Selling":
+            prices = frappe.db.sql("""select 
+                    max(price_list_rate) as price_list_rate 
+                from `tabItem Price` 
+                where 
+                    item_code = %(item_code)s""", 
+                {"item_code": doc.item_code},
+                as_dict = 1 )
+            
+            if prices:
+                item = frappe.get_doc("Item", doc.item_code)                
+                if item.standard_rate != prices[0].price_list_rate:
+                    item.db_set("standard_rate", prices[0].price_list_rate)
+                    item.db_set("custom_is_synced", 0)

@@ -201,11 +201,16 @@ SYNC_DOCTYPES = [
 ]
 
 doc_events = {
-    doctype: {
-        "after_insert": "homeall_ecommerce_integration.controller.update_sync_status",
-        "on_update": "homeall_ecommerce_integration.controller.update_sync_status",
+    **{ 
+        doctype: {
+            "after_insert": "homeall_ecommerce_integration.controller.update_sync_status",
+            "on_update": "homeall_ecommerce_integration.controller.update_sync_status",
+        }
+        for doctype in SYNC_DOCTYPES
+    },    
+    "Item Price":{
+        "on_update": "homeall_ecommerce_integration.controller.update_item",
     }
-    for doctype in SYNC_DOCTYPES
 }
 
 # Scheduled Tasks
