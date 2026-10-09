@@ -467,6 +467,10 @@ def prepare_business_profile_data(record):
 
 # prepare data of brand
 def prepare_brand_data(record, supabase_id): 
+    if record.image:
+        if record.image.startswith("/files/") or record.image.startswith("/private/files/") or record.image.startswith("/api/method/frappe_s3_attachment"):
+            record.image = f"https://cloudsvr01.homeall.asia{record.image}"
+            
     data = {
         "id": supabase_id,
         "name": record.name, 
