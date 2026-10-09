@@ -221,14 +221,21 @@ def sync_brands_queues():
     
 # sync product group
 def sync_item_groups():
-    item_groups = frappe.get_all("Item Group", 
-                                filters={
-                                    "custom_is_synced": 0 
-                                }, 
-                                fields=["*"])
-    
-    for group in item_groups:
-        upsert_item_group(group)
+    item_groups = frappe.get_all(
+        "Item Group",
+        filters={"custom_is_synced": 0},
+        fields=["name"]
+    )
+
+    for row in item_groups:
+        try:
+            group = frappe.get_doc("Item Group", row.name)
+            upsert_item_group(group)
+        except Exception:
+            frappe.log_error(
+                title="Item Group Sync Error",
+                message=frappe.get_traceback()
+            )
         
 def sync_item_groups_queues(): 
     frappe.enqueue(
@@ -283,11 +290,12 @@ def sync_products():
             supabase_id = item.get("custom_supabase_id")
             
         product_data = item_to_product(item,supabase_id,currency)  
-        product_data_list.append(product_data)
-        item_supabase_ids.append({
-            "name": item.name,
-            "supabase_id": supabase_id
-        })
+        if product_data:
+            product_data_list.append(product_data)
+            item_supabase_ids.append({
+                "name": item.name,
+                "supabase_id": supabase_id
+            })
     
     if product_data_list:
         try:
@@ -336,23 +344,60 @@ def sync_products_queues():
     )
 
 # method to upsert item group
-def upsert_item_group(group):
+def upsert_item_group(group,visited=None):
+    if visited is None:
+        visited = set()
+        
+    # Prevent infinite recursion if a circular parent relationship exists
+    if group.name in visited:
+        frappe.throw(
+            f"Circular Item Group hierarchy detected at {group.name}"
+        )
+
+    visited.add(group.name)
+
+    # Resolve and sync the parent first 
     parent_supabase_id = None
     if group.parent_item_group: 
-        parent_group = frappe.get_doc("Item Group", group.parent_item_group)
-        parent_supabase_id = str(uuid.uuid4())
-        if is_valid_uuid(parent_group.get("custom_supabase_id")):
-            parent_supabase_id = parent_group.get("custom_supabase_id")
+        parent_group = frappe.get_doc(
+            "Item Group",
+            group.parent_item_group
+        )
+        parent_supabase_id = parent_group.get("custom_supabase_id")
+        if not is_valid_uuid(parent_supabase_id):
+            parent_supabase_id = None
+            
                                 
-        if not parent_group.custom_is_synced:
-            upsert_item_group(parent_group) 
+        # Sync parent first if it has not been synced or has no valid ID
+        if (
+            not parent_group.custom_is_synced
+            or not parent_supabase_id
+        ):
+            parent_supabase_id = upsert_item_group(
+                parent_group,
+                visited
+            )
+
+            if not parent_supabase_id:
+                frappe.throw(
+                    f"Failed to sync parent Item Group: "
+                    f"{parent_group.name}"
+                )
+
             
             
-    supabase_id = str(uuid.uuid4())
-    if is_valid_uuid(group.get("custom_supabase_id")):
-        supabase_id = group.get("custom_supabase_id")
+    # Reuse existing UUID, otherwise create a new one
+    supabase_id = group.get("custom_supabase_id")
+    if not is_valid_uuid(supabase_id):
+        supabase_id = str(uuid.uuid4())
         
-    group_data = prepare_item_group_data(group, supabase_id,parent_supabase_id)
+    # Prepare payload
+    group_data = prepare_item_group_data(
+        group,
+        supabase_id,
+        parent_supabase_id
+    )
+
     sup = init_supabase() 
     response = (
         sup
@@ -362,7 +407,11 @@ def upsert_item_group(group):
             on_conflict="id"
         ).execute()
     )
+    
     if response.data:
+        group.custom_is_synced = 1
+        group.custom_supabase_id = supabase_id
+        
         frappe.db.set_value(
             "Item Group",
             group.name,
@@ -421,7 +470,7 @@ def prepare_brand_data(record, supabase_id):
     data = {
         "id": supabase_id,
         "name": record.name, 
-        "description": record.description or None,
+        "description": record.description or "",
         "image_url": record.image or None,
         "sort_order": record.custom_sort_order,
         "is_feature": bool(record.custom_is_feature),
@@ -435,7 +484,6 @@ def prepare_item_group_data(item_group, supabase_id, parent_supabase_id):
         "id": supabase_id,
         "parent_id": parent_supabase_id,
         "name": item_group.name,
-        "erp_name": item_group.item_group_name,
         "image_url": item_group.image,
         "sort_order": item_group.custom_sort_order,
         "is_new": bool(item_group.custom_is_new),
