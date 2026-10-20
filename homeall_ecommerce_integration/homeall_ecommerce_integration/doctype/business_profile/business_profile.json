@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_rename": 1,
  "autoname": "UUID",
  "creation": "2026-09-19 15:00:53.257593",
  "doctype": "DocType",
@@ -124,7 +125,7 @@
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-19 15:45:04.092136",
+ "modified": "2026-10-20 13:30:59.770296",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "Business Profile",

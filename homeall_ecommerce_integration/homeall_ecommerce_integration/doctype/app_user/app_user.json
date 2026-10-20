@@ -1,51 +1,39 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
- "allow_rename": 1,
- "autoname": "field:user_id",
+ "autoname": "UUID",
  "creation": "2026-09-06 11:20:56.045630",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "user_id",
-  "party_type",
-  "party",
-  "is_verify",
+  "username",
+  "password",
+  "phone_number",
+  "email_address",
   "full_name",
-  "photo"
+  "party",
+  "user_type",
+  "default_price_list",
+  "is_dsku_user",
+  "is_homeall_user",
+  "status",
+  "column_break_pynx",
+  "photo",
+  "user_address_tab",
+  "html_user_addresses"
  ],
  "fields": [
   {
-   "description": "Phone or Email as key",
-   "fieldname": "user_id",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "User Id",
-   "unique": 1
-  },
-  {
-   "fieldname": "party_type",
+   "fieldname": "party",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Party Type",
-   "options": "DocType"
-  },
-  {
-   "fieldname": "party",
-   "fieldtype": "Dynamic Link",
-   "in_list_view": 1,
-   "label": "Party",
-   "options": "party_type"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_verify",
-   "fieldtype": "Check",
-   "label": "Is Verify"
+   "label": "Customer",
+   "options": "Customer"
   },
   {
    "fieldname": "full_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Full Name"
   },
   {
@@ -53,17 +41,92 @@
    "fieldtype": "Attach Image",
    "hidden": 1,
    "label": "Photo"
+  },
+  {
+   "fieldname": "default_price_list",
+   "fieldtype": "Link",
+   "label": "Default Price List",
+   "options": "Price List"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_dsku_user",
+   "fieldtype": "Check",
+   "label": "Allow Login to DSKU App"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_homeall_user",
+   "fieldtype": "Check",
+   "label": "Allow Login to HomeAll App"
+  },
+  {
+   "fieldname": "column_break_pynx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Username",
+   "unique": 1
+  },
+  {
+   "fieldname": "password",
+   "fieldtype": "Password",
+   "label": "Password",
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Phone number",
+   "unique": 1
+  },
+  {
+   "fieldname": "email_address",
+   "fieldtype": "Data",
+   "label": "Email Address",
+   "options": "Email"
+  },
+  {
+   "fieldname": "user_type",
+   "fieldtype": "Link",
+   "label": "User Type",
+   "options": "App User Type"
+  },
+  {
+   "fieldname": "user_address_tab",
+   "fieldtype": "Tab Break",
+   "label": "User Address"
+  },
+  {
+   "fieldname": "html_user_addresses",
+   "fieldtype": "HTML",
+   "label": "HTML User Addresses"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Status",
+   "read_only": 1,
+   "options": "Active\nInactive"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-06 11:34:04.895930",
+ "modified": "2026-10-19 14:14:43.846638",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App User",
- "naming_rule": "By fieldname",
+ "naming_rule": "UUID",
  "owner": "Administrator",
  "permissions": [
   {

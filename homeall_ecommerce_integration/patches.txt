@@ -8,3 +8,4 @@
 [post_fixture_sync]
 # Patches added in this section will be executed after fixtures and customizations
 # (Custom Field, Property Setter, etc) are synced
+homeall_ecommerce_integration.patches.v1_0.normalize_address_fields

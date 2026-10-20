@@ -1,0 +1,79 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "UUID",
+ "creation": "2026-10-19 09:14:42.511044",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "min_qty",
+  "max_qty",
+  "min_amount",
+  "max_amount",
+  "column_break_kwte",
+  "rate_or_discount",
+  "price_or_discount_value"
+ ],
+ "fields": [
+  {
+   "fieldname": "min_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min Qty"
+  },
+  {
+   "fieldname": "max_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Max Qty"
+  },
+  {
+   "fieldname": "min_amount",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min Amount"
+  },
+  {
+   "fieldname": "max_amount",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Max Amount"
+  },
+  {
+   "fieldname": "column_break_kwte",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rate_or_discount",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Discount Type",
+   "options": "Rate\nDiscount Percentage\nDiscount Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "price_or_discount_value",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Price or Discount Value"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-19 09:35:29.664382",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "App Promotion Price Discount Slabs",
+ "naming_rule": "UUID",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

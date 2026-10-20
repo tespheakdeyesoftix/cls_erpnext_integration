@@ -193,11 +193,14 @@ app_include_icons = [
 # 	}
 # }
 SYNC_DOCTYPES = [
+    "App User Type",
+    "App Promotion",
+    "Price List",
     "Brand",
     "Business Type",
     "Business Profile",
     "Item Group",
-    "Item",
+    "Item",    
 ]
 
 doc_events = {
@@ -205,11 +208,17 @@ doc_events = {
         doctype: {
             "after_insert": "homeall_ecommerce_integration.controller.update_sync_status",
             "on_update": "homeall_ecommerce_integration.controller.update_sync_status",
+            "after_rename": "homeall_ecommerce_integration.controller.update_sync_status",
         }
         for doctype in SYNC_DOCTYPES
     },    
     "Item Price":{
         "on_update": "homeall_ecommerce_integration.controller.update_item",
+    },
+    "File": {
+        "after_insert": "homeall_ecommerce_integration.file_attachment.after_insert",
+        "on_update": "homeall_ecommerce_integration.file_attachment.on_update",
+        "on_trash": "homeall_ecommerce_integration.file_attachment.on_trash",
     }
 }
 
@@ -315,6 +324,10 @@ doc_events = {
 
 fixtures = [
     {"dt": "Custom Field"},
+    {
+        "dt": "Property Setter",
+        "filters": [["doc_type", "=", "Address"]],
+    },
 ]
 
 # Automatically update python controller files with type annotations for this app.

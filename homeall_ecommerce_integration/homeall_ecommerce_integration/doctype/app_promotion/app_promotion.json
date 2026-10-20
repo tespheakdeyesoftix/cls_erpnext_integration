@@ -1,0 +1,341 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "autoname": "UUID",
+ "creation": "2026-10-14 14:14:33.716121",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "promotion_type",
+  "business_id",
+  "start_date",
+  "end_date",
+  "show_countdown",
+  "show_sold_progress",
+  "application_scope",
+  "cart_qualification_uom",
+  "maximum_cart_discount_amount",
+  "column_break_wdga",
+  "amended_from",
+  "applicable_for",
+  "section_break_hygz",
+  "apply_for",
+  "price_discount_slabs_section",
+  "price_discount_slabs",
+  "product_discount_slabs_section",
+  "product_discount_slabs",
+  "section_break_lulb",
+  "description",
+  "column_break_loya",
+  "terms_and_conditions",
+  "flash_sale_setting_tab",
+  "flash_banner_style",
+  "show_upcoming",
+  "upcoming_display",
+  "flash_product_source",
+  "flash_product_limit",
+  "flash_banner_full_width",
+  "flash_banner_corner_radius",
+  "flash_banner_height",
+  "countdown_placement",
+  "badge_bg_color",
+  "card_action_type",
+  "card_action_product_id",
+  "card_action_url",
+  "column_break_bamo",
+  "flash_banner_products",
+  "integration_tab",
+  "disabled",
+  "column_break_lvmm",
+  "is_synced"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "End Date"
+  },
+  {
+   "fieldname": "column_break_wdga",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "App Promotion",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_lulb",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Markdown Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_loya",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "promotion_type",
+   "fieldtype": "Select",
+   "label": "Promotion Type",
+   "options": "Standard\nFlash Sale"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_sold_progress",
+   "fieldtype": "Check",
+   "label": "Show Sold Progress"
+  },
+  {
+   "fieldname": "section_break_hygz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "apply_for",
+   "fieldtype": "Table",
+   "label": "Apply For",
+   "options": "App Promotion Apply For"
+  },
+  {
+   "fieldname": "applicable_for",
+   "fieldtype": "Table",
+   "label": "Applicable For",
+   "options": "App Promotion Applicable For"
+  },
+  {
+   "fieldname": "business_id",
+   "fieldtype": "Link",
+   "label": "Business Profile",
+   "options": "Business Profile",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "show_countdown",
+   "fieldtype": "Check",
+   "label": "Show Countdown"
+  },
+  {
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Markdown Editor",
+   "label": "Term and Condiction"
+  },
+  {
+   "fieldname": "flash_sale_setting_tab",
+   "fieldtype": "Tab Break",
+   "label": "Flash Sale Setting"
+  },
+  {
+   "default": "style_1",
+   "fieldname": "flash_banner_style",
+   "fieldtype": "Select",
+   "label": "Flash Banner Style",
+   "options": "style_1\nstyle_2\nstyle_3"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_upcoming",
+   "fieldtype": "Check",
+   "label": "Show Upcoming"
+  },
+  {
+   "default": "label",
+   "fieldname": "upcoming_display",
+   "fieldtype": "Select",
+   "label": "Upcoming Display",
+   "options": "label\ncountdown"
+  },
+  {
+   "default": "apply_for",
+   "fieldname": "flash_product_source",
+   "fieldtype": "Select",
+   "label": "Flash Product Source",
+   "options": "apply_for\nmanual"
+  },
+  {
+   "default": "6",
+   "fieldname": "flash_product_limit",
+   "fieldtype": "Int",
+   "label": "Flash Product Limit",
+   "max_value": 12.0,
+   "min_value": 6.0
+  },
+  {
+   "fieldname": "column_break_bamo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "flash_banner_products",
+   "fieldtype": "Table",
+   "label": "Flash Banner Products",
+   "options": "Flash Sale Banner Product"
+  },
+  {
+   "default": "0",
+   "fieldname": "flash_banner_full_width",
+   "fieldtype": "Check",
+   "label": "flash_banner_full_width"
+  },
+  {
+   "default": "9",
+   "fieldname": "flash_banner_corner_radius",
+   "fieldtype": "Int",
+   "label": "flash_banner_corner_radius"
+  },
+  {
+   "default": "260",
+   "fieldname": "flash_banner_height",
+   "fieldtype": "Int",
+   "label": "Flash banner height"
+  },
+  {
+   "default": "top_right",
+   "fieldname": "countdown_placement",
+   "fieldtype": "Select",
+   "label": "Countdown Placement",
+   "options": "top_left\ntop_center\ntop_right\nbottom_left\nbottom_center\nbottom_right\nmiddle_left\nmiddle_right\nmiddle_center"
+  },
+  {
+   "fieldname": "badge_bg_color",
+   "fieldtype": "Color",
+   "label": "Badge BG Color"
+  },
+  {
+   "fieldname": "card_action_type",
+   "fieldtype": "Select",
+   "label": "card_action_type",
+   "options": "native_detail\nproduct_detail\npromotion_products\nwebview"
+  },
+  {
+   "fieldname": "card_action_product_id",
+   "fieldtype": "Link",
+   "label": "card_action_product_id",
+   "options": "Item"
+  },
+  {
+   "fieldname": "card_action_url",
+   "fieldtype": "Data",
+   "label": "card_action_url"
+  },
+  {
+   "fieldname": "price_discount_slabs_section",
+   "fieldtype": "Section Break",
+   "label": "Price Discount Slabs"
+  },
+  {
+   "fieldname": "price_discount_slabs",
+   "fieldtype": "Table",
+   "label": "Promotional Scheme Price Discount",
+   "options": "App Promotion Price Discount Slabs"
+  },
+  {
+   "fieldname": "product_discount_slabs_section",
+   "fieldtype": "Section Break",
+   "label": "Product Discount Slabs"
+  },
+  {
+   "fieldname": "product_discount_slabs",
+   "fieldtype": "Table",
+   "label": "Promotional Scheme Product Discount",
+   "options": "App Promotion Product Discount Slabs"
+  },
+  {
+   "fieldname": "integration_tab",
+   "fieldtype": "Tab Break",
+   "label": "Integration"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "is_synced",
+   "fieldtype": "Check",
+   "label": "Is Synced",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "column_break_lvmm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "product_line",
+   "fieldname": "application_scope",
+   "fieldtype": "Select",
+   "label": "Application Scope",
+   "options": "product_line\neligible_cart\nentire_cart"
+  },
+  {
+   "description": "This prevents invalid aggregation such as:\n5 Cases + 8 Kilograms + 3 Units = 16",
+   "fieldname": "cart_qualification_uom",
+   "fieldtype": "Link",
+   "label": "Cart Qualification Uom",
+   "options": "UOM"
+  },
+  {
+   "default": "0",
+   "fieldname": "maximum_cart_discount_amount",
+   "fieldtype": "Currency",
+   "label": "Maximum Cart Discount Amount"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-10-20 13:36:18.363240",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "App Promotion",
+ "naming_rule": "UUID",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title"
+}

@@ -1,0 +1,98 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "UUID",
+ "creation": "2026-10-19 09:24:20.100808",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "free_product",
+  "min_qty",
+  "max_qty",
+  "min_amount",
+  "max_amount",
+  "column_break_znhq",
+  "free_product_qty",
+  "is_recursive",
+  "recurse_for",
+  "apply_recursion_over"
+ ],
+ "fields": [
+  {
+   "fieldname": "free_product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Free Product",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "min_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min Qty"
+  },
+  {
+   "fieldname": "max_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Max Qty"
+  },
+  {
+   "fieldname": "min_amount",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min Amount"
+  },
+  {
+   "fieldname": "max_amount",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Max Amount"
+  },
+  {
+   "fieldname": "column_break_znhq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "free_product_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Free Product Qty"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_recursive",
+   "fieldtype": "Check",
+   "label": "Is Recursive"
+  },
+  {
+   "fieldname": "recurse_for",
+   "fieldtype": "Float",
+   "label": "Recurse Every (As Per Transaction UOM)"
+  },
+  {
+   "fieldname": "apply_recursion_over",
+   "fieldtype": "Float",
+   "label": "Apply Recursion Over (As Per Transaction UOM)"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-19 09:33:05.316778",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "App Promotion Product Discount Slabs",
+ "naming_rule": "UUID",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

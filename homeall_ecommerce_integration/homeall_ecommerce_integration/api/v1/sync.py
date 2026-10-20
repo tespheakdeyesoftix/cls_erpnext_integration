@@ -1,27 +1,60 @@
 import frappe
 import json
 from frappe.utils import get_datetime
-from supabase import create_client, Client
 import uuid
 from homeall_ecommerce_integration.controller import is_valid_uuid,slugify
+from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import fn_sync_to_supabase as sync
+from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import app_promotion_sync as app_promotion
+from postgrest.exceptions import APIError
 
-def init_supabase():
-    site_config = frappe.get_site_config()
-    url = site_config.get("supabase_api_url")
-    key = site_config.get("supabase_api_key")
-    if not url:
-        frappe.throw("Supabase API URL is not configured")
+init_supabase = sync.init_supabase
 
-    if not key:
-        frappe.throw("Supabase API key is not configured")
-        
-    supabase =  create_client(url, key)    
-    return supabase
+@frappe.whitelist(methods=["POST"])
+def sync_data():
+    frappe.only_for("System Manager")
+    return sync_price_list()
 
-@frappe.whitelist(allow_guest=True, methods=["POST"])
-def sync_data():  
-    return {"message": "Sync process has been initiated."}
+## sync price list
+def sync_price_list(name: str = None, batch_size: int = 100): 
+    return sync.sync_to_supabase(
+        doctype="Price List",
+        table_name="price_lists",
+        prepare_data=prepare_price_list_data,
+        name=name,
+        batch_size=batch_size,
+        sync_field="custom_is_synced",
+        uuid_field="custom_supabase_id"
+    )
+    
+def sync_price_list_queues(): 
+    frappe.enqueue(
+        "homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync.sync_price_list", # python function or a module path as string
+        queue="short", # one of short, default, long
+        job_name="sync_price_list", # specify a job name
+        # enqueue_after_commit=True,
+    )  
+## end sync price list
 
+## sync app user type
+def sync_app_user_types(name: str = None, batch_size: int = 100):     
+    return sync.sync_to_supabase(
+        doctype="App User Type",
+        table_name="user_types",
+        prepare_data=prepare_app_user_type_data,
+        name=name,
+        batch_size=batch_size,
+        sync_field="is_synced"
+    ) 
+    
+
+def sync_app_user_types_queues(): 
+    frappe.enqueue(
+        "homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync.sync_app_user_types", # python function or a module path as string
+        queue="short", # one of short, default, long
+        job_name="sync_app_user_types", # specify a job name
+        # enqueue_after_commit=True,
+    )
+##end sync app user type
 
 #sync business type
 def sync_business_types():
@@ -246,94 +279,197 @@ def sync_item_groups_queues():
     )       
 
 # sync products
-def sync_products():   
+def sync_products(batch_size=100):   
     currency = frappe.defaults.get_global_default("currency")   
-    items = frappe.get_all("Item", 
-                           filters={ "custom_is_synced": 0 }, 
-                           fields=["*"]
-                        )  
-    ##
+    items = frappe.db.sql("""
+        SELECT *
+        FROM `tabItem`
+        WHERE IFNULL(custom_is_synced, 0) = 0
+        AND custom_business_profile IS NOT NULL
+        AND TRIM(custom_business_profile) != ''
+    """, as_dict=True)  
+    
+    if not items:
+        return {
+            "success": True,
+            "synced_count": 0,
+            "message": "No products to synchronize.",
+        }
+        
+    sup = init_supabase()   
+    
+    # Collect Item Groups referenced by products.
     item_group_names = list({
         row.item_group
         for row in items
         if row.item_group
     })
-    ##
-    item_groups = frappe.get_all("Item Group", 
-                                filters={
-                                    "name": ["in", item_group_names],
-                                    # "custom_is_synced": 0 
-                                }, 
-                                fields=["*"])
-    if item_groups:
+    item_group_map = {}
+    
+    # --------------------------------------------------
+    # 1. Synchronize Item Groups first
+    # --------------------------------------------------
+    if item_group_names:
+        item_groups = frappe.get_all("Item Group", 
+                                    filters={
+                                        "name": ["in", item_group_names],
+                                    }, 
+                                    fields=["*"])
+        # Include parent groups recursively through upsert_item_group().
         for group in item_groups:
-            if not group.custom_is_synced:
-                group.custom_supabase_id = upsert_item_group(group)
-                
-        item_group_map = {
-            group.name: group
-            for group in item_groups
-        }
-        for item in items:
-            if item.item_group in item_group_map:
-                item.item_group_id = item_group_map[item.item_group].custom_supabase_id
-            else:
-                item.item_group_id = None
-                
+            group_id = upsert_item_group(group)
+            if not is_valid_uuid(group_id):
+                frappe.throw(
+                    f"Failed to synchronize Item Group: {group.name}"
+                )
+                                
+            item_group_map[group.name] = group_id
+   
+    # --------------------------------------------------
+    # 2. Prepare product payloads
+    # --------------------------------------------------
     product_data_list = []        
     item_supabase_ids = []
-    sup = init_supabase()  
+    sup = init_supabase()       
     
     for item in items:  
-        supabase_id = str(uuid.uuid4())
-        if is_valid_uuid(item.get("custom_supabase_id")):
-            supabase_id = item.get("custom_supabase_id")
-            
-        product_data = item_to_product(item,supabase_id,currency)  
-        if product_data:
-            product_data_list.append(product_data)
-            item_supabase_ids.append({
-                "name": item.name,
-                "supabase_id": supabase_id
-            })
+        supabase_id = item.custom_supabase_id
+        # Reuse an existing valid UUID.
+        if not is_valid_uuid(supabase_id):
+            supabase_id = str(uuid.uuid4())
+            # Persist the ID before the remote request.
+            frappe.db.set_value(
+                "Item",
+                item.name,
+                "custom_supabase_id",
+                supabase_id,
+                update_modified=False,
+            )
+        
+        # Resolve the Item Group's Supabase UUID.
+        item_group_id = item_group_map.get(item.item_group)
+        
+        item_doc = frappe.get_doc("Item", item.name)
+        
+        # Provide the mapped ID expected by item_to_product().
+        item_doc.item_group_id = item_group_id
+        
+        product_data = item_to_product(
+            item_doc,
+            supabase_id,
+            currency,
+        )
+        
+        if not product_data:
+            continue
+        
+        # Never send a group ID that has not been resolved.
+        if product_data.get("item_group_id") and not item_group_id:
+            frappe.throw(
+                f"Unable to resolve Supabase Item Group ID "
+                f"for Item {item.name}, "
+                f"Item Group {item.item_group}"
+            )
+        
+        product_data_list.append(product_data)
+        item_supabase_ids.append({
+            "name": item.name,
+            "supabase_id": supabase_id
+        })
+        
+    # Persist UUID assignments before remote product upserts.
+    frappe.db.commit()
+        
+    if not product_data_list:
+        return {
+            "success": True,
+            "synced_count": 0,
+            "message": "No valid product data to synchronize.",
+        }
+
+    # --------------------------------------------------
+    # 3. Upload products in batches
+    # --------------------------------------------------
     
-    if product_data_list:
+    total_synced = 0
+    
+    for start in range(0, len(product_data_list), batch_size):
+        batch_data = product_data_list[start:start + batch_size]
+
+        batch_items = item_supabase_ids[
+            start:start + batch_size
+        ] 
+        
         try:
             response = (
                 sup
                 .table("products")
                 .upsert(
-                    product_data_list, 
+                    batch_data, 
                     on_conflict="id"
                 ).execute()
-            )
-        
-        
-            if response.data:
-                # Update Frappe only after successful Supabase upsert
-                for item_data in item_supabase_ids:
-                    frappe.db.set_value(
-                        "Item",
-                        item_data["name"],
-                        {
-                            "custom_is_synced": 1,
-                            "custom_supabase_id": item_data["supabase_id"]
-                        },
-                        update_modified=False
-                    )
-
-                frappe.db.commit()
-            else:
-                frappe.log_error(
-                    title="Supabase Bulk Sync Error",
-                    message=f"Supabase returned no data: {response}"
+            )   
+            
+            # Update Frappe only after successful upsert.
+            for item_data in batch_items:
+                frappe.db.set_value(
+                    "Item",
+                    item_data["name"],
+                    {
+                        "custom_is_synced": 1,
+                        "custom_supabase_id": item_data["supabase_id"],
+                    },
+                    update_modified=False,
                 )
-        except Exception:
+                
+            frappe.db.commit()
+            total_synced += len(batch_items)
+            
+        except APIError as e:
+            frappe.db.rollback()
+
+            error_details = {
+                "message": str(e),
+                "code": getattr(e, "code", None),
+                "details": getattr(e, "details", None),
+                "hint": getattr(e, "hint", None),
+                "batch_start": start,
+                "product_count": len(batch_items),
+                "data": batch_data,
+            }
+
             frappe.log_error(
-                title="Supabase Bulk Sync Error",
-                message=frappe.get_traceback()
+                title="Supabase Product API Error",
+                message=json.dumps(
+                    error_details,
+                    indent=2,
+                    default=str,
+                ),
             )
+            print(error_details)
+
             raise
+                    
+        except Exception:
+            frappe.db.rollback()
+
+            frappe.log_error(
+                title="Supabase Product Sync Error",
+                message=(
+                    f"Batch starting at index {start}\n"
+                    f"Product count: {len(batch_items)}\n\n"
+                    f"{frappe.get_traceback()}"
+                ),
+            )
+
+            raise
+        
+    return {
+        "success": True,
+        "synced_count": total_synced,
+        "total_products": len(product_data_list),
+    }
+
 
 def sync_products_queues(): 
     frappe.enqueue(
@@ -348,89 +484,109 @@ def upsert_item_group(group,visited=None):
     if visited is None:
         visited = set()
         
-    # Prevent infinite recursion if a circular parent relationship exists
-    if group.name in visited:
+    # Accept either a document or a document name.
+    if isinstance(group, str):
+        group = frappe.get_doc("Item Group", group)
+
+    group_name = group.name
+        
+    # Prevent circular parent relationships.
+    if group_name in visited:
         frappe.throw(
             f"Circular Item Group hierarchy detected at {group.name}"
         )
 
     visited.add(group.name)
 
-    # Resolve and sync the parent first 
-    parent_supabase_id = None
-    if group.parent_item_group: 
-        parent_group = frappe.get_doc(
-            "Item Group",
-            group.parent_item_group
-        )
-        parent_supabase_id = parent_group.get("custom_supabase_id")
-        if not is_valid_uuid(parent_supabase_id):
-            parent_supabase_id = None
-            
-                                
-        # Sync parent first if it has not been synced or has no valid ID
-        if (
-            not parent_group.custom_is_synced
-            or not parent_supabase_id
-        ):
+    try:
+        parent_supabase_id = None
+        # Synchronize the parent before the child.
+        parent_name = group.get("parent_item_group")
+        if parent_name:
             parent_supabase_id = upsert_item_group(
-                parent_group,
-                visited
+                parent_name,
+                visited,
             )
-
-            if not parent_supabase_id:
+            
+            if not is_valid_uuid(parent_supabase_id):
                 frappe.throw(
-                    f"Failed to sync parent Item Group: "
-                    f"{parent_group.name}"
+                    f"Failed to synchronize parent Item Group: "
+                    f"{parent_name}"
                 )
+                
+        # Reuse the existing UUID.
+        supabase_id = group.get("custom_supabase_id")
 
-            
-            
-    # Reuse existing UUID, otherwise create a new one
-    supabase_id = group.get("custom_supabase_id")
-    if not is_valid_uuid(supabase_id):
-        supabase_id = str(uuid.uuid4())
+        if not is_valid_uuid(supabase_id):
+            supabase_id = str(uuid.uuid4())
         
-    # Prepare payload
-    group_data = prepare_item_group_data(
-        group,
-        supabase_id,
-        parent_supabase_id
-    )
-
-    sup = init_supabase() 
-    response = (
-        sup
-        .table("item_groups")
-        .upsert(
-            group_data, 
-            on_conflict="id"
-        ).execute()
-    )
-    
-    if response.data:
-        group.custom_is_synced = 1
-        group.custom_supabase_id = supabase_id
+        # Build the Supabase payload.
+        group_data = prepare_item_group_data(
+            group,
+            supabase_id,
+            parent_supabase_id,
+        )
         
+        sup = init_supabase()
+        
+        # Upsert even if Frappe says the group is already synced.
+        (
+            sup.table("item_groups")
+            .upsert(
+                group_data,
+                on_conflict="id",
+            )
+            .execute()
+        )
+        
+        # Update Frappe only after a successful request.
         frappe.db.set_value(
             "Item Group",
-            group.name,
+            group_name,
             {
                 "custom_is_synced": 1,
-                "custom_supabase_id": supabase_id
+                "custom_supabase_id": supabase_id,
             },
-             update_modified=False
+            update_modified=False,
         )
+
+        group.custom_is_synced = 1
+        group.custom_supabase_id = supabase_id
+
         return supabase_id
-    else:
+    
+    except Exception:
         frappe.log_error(
-            title="Supabase Sync Error",
-            message=f"Failed to sync item group {group.name}: {response.data}"
+            title="Supabase Item Group Sync Error",
+            message=(
+                f"Item Group: {group_name}\n\n"
+                f"{frappe.get_traceback()}"
+            ),
         )
-        return None
+        raise
+
+    finally:
+        visited.discard(group_name)
   
 
 ## Prepare Data for Supabase  
+# prepare data of app user type
+def prepare_price_list_data(record,supabase_id):
+    data = {
+        "id": supabase_id,
+        "price_list_name": record.price_list_name
+    }
+    return data
+
+# prepare data of app user type
+def prepare_app_user_type_data(record):
+    data = {
+        "id": record.name,
+        "name": record.title, 
+        "is_active": not bool(record.disabled),
+    }
+    return data
+
 # prepare data of business type
 def prepare_business_type_data(record):
     data = {
@@ -446,6 +602,10 @@ def prepare_business_type_data(record):
 # prepare data of business profile
 def prepare_business_profile_data(record):
     modified = get_datetime(record.modified)
+    if record.photo:
+        if record.photo.startswith("/files/") or record.photo.startswith("/private/files/") or record.photo.startswith("/api/method/frappe_s3_attachment"):
+            record.photo = f"https://cloudsvr01.homeall.asia{record.photo}"
+            
     data = {
         "id": record.name,
         "business_type_id": record.business_type,
@@ -541,7 +701,6 @@ def item_to_product(item, supabase_id, currency):
         "default_image_url": item.image or None,
         "is_active": not bool(item.disabled),
         "is_stock_item": bool(item.is_stock_item),
-        "price": float(item.standard_rate or 0),
         "currency": currency, 
         "photos":photo_urls,
         "business_id": item.custom_business_profile,
@@ -550,6 +709,10 @@ def item_to_product(item, supabase_id, currency):
         "is_feature": bool(item.custom_is_feature),
         "is_publish": bool(item.custom_is_publish),
         "is_popular": bool(item.custom_is_popular),
+        "min_order_quantity": item.custom_min_order_quantity or 1,
+        "show_free_delivery_badge": item.custom_show_free_delivery_badge or 0,
+        "show_cod_badge": item.custom_show_cod_badge or 0,
+        "availability_status": item.custom_availability_status or "in_stock"
     } 
     
     

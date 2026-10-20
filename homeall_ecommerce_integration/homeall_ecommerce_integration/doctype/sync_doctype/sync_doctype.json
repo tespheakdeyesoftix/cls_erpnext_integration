@@ -15,7 +15,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Sync DocType",
-   "link_filters": "[[\"DocType\",\"name\",\"in\",[\"Business Type\",\"Business Profile\",\"Brand\",\"Item Group\",\"Item\"]]]",
+   "link_filters": "[[\"DocType\",\"name\",\"in\",[\"App User Type\",\"Business Type\",\"Business Profile\",\"Brand\",\"Item Group\",\"Item\"]]]",
    "options": "DocType"
   }
  ],
@@ -23,7 +23,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-19 17:32:44.567160",
+ "modified": "2026-10-17 10:51:33.124908",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "Sync DocType",

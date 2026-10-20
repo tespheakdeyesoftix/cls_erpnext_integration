@@ -16,7 +16,7 @@ def slugify(text: str) -> str:
 
 @frappe.whitelist()
 def  update_sync_status(doc: Document, method: str):
-    if doc.doctype in ["Business Profile", "Business Type"]:    
+    if doc.doctype in ["Business Profile", "Business Type", "App User Type","App Promotion"]:    
         if doc.get("is_synced") == 1: 
             doc.db_set("is_synced", 0)
     else:
