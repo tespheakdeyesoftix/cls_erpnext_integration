@@ -325,6 +325,10 @@ doc_events = {
 fixtures = [
     {"dt": "Custom Field"},
     {
+            "dt": "Custom Field",
+            "filters": [["module", "=", "Homeall Ecommerce Integration"]],
+        },
+    {
         "dt": "Property Setter",
         "filters": [["doc_type", "=", "Address"]],
     },
