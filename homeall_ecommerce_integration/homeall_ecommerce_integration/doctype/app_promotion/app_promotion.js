@@ -21,7 +21,7 @@ frappe.ui.form.on("App Promotion", {
 					__("Promotion submitted to the App Database"),
 					true
 				),
-			__("Sync to App")
+			__("Sync to App Database")
 		);
 
 		if (!frm.doc.is_synced) {
@@ -37,7 +37,7 @@ frappe.ui.form.on("App Promotion", {
 					__("Generating promotion pricing rules..."),
 					__("Promotion pricing rules generated")
 				),
-			__("Supabase")
+			__("Sync to App Database")
 		);
 
 		frm.add_custom_button(
@@ -56,7 +56,7 @@ frappe.ui.form.on("App Promotion", {
 						)
 				);
 			},
-			__("Supabase")
+			__("Sync to App Database")
 		);
 	},
 });

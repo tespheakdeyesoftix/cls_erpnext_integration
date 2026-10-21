@@ -42,7 +42,9 @@ class AppPromotion(Document):
 		flash_product_source: DF.Literal["apply_for", "manual"]
 		is_synced: DF.Check
 		maximum_cart_discount_amount: DF.Currency
+		photo: DF.AttachImage | None
 		price_discount_slabs: DF.Table[AppPromotionPriceDiscountSlabs]
+		priority: DF.Int
 		product_discount_slabs: DF.Table[AppPromotionProductDiscountSlabs]
 		promotion_type: DF.Literal["Standard", "Flash Sale"]
 		show_countdown: DF.Check

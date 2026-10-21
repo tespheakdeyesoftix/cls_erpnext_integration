@@ -19,6 +19,8 @@
   "column_break_wdga",
   "amended_from",
   "applicable_for",
+  "photo",
+  "priority",
   "section_break_hygz",
   "apply_for",
   "price_discount_slabs_section",
@@ -180,9 +182,7 @@
    "default": "6",
    "fieldname": "flash_product_limit",
    "fieldtype": "Int",
-   "label": "Flash Product Limit",
-   "max_value": 12.0,
-   "min_value": 6.0
+   "label": "Flash Product Limit"
   },
   {
    "fieldname": "column_break_bamo",
@@ -306,13 +306,24 @@
    "fieldname": "maximum_cart_discount_amount",
    "fieldtype": "Currency",
    "label": "Maximum Cart Discount Amount"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "Photo"
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority"
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
+ "image_field": "photo",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-20 13:36:18.363240",
+ "modified": "2026-10-21 13:45:46.680024",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App Promotion",
