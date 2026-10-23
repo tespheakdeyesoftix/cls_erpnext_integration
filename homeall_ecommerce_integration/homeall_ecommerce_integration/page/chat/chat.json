@@ -1,0 +1,21 @@
+{
+ "content": null,
+ "creation": "2026-10-23 16:19:14.384615",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-10-23 16:19:14.384615",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "chat",
+ "owner": "Administrator",
+ "page_name": "chat",
+ "roles": [],
+ "script": null,
+ "shared_page": 0,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Chat",
+ "type": ""
+}

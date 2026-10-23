@@ -230,6 +230,8 @@ doc_events = {
 r2_upload_doctypes = {
     "Item": {"folder": "items"},
     "App Promotion": {"folder": "promotion"},
+    "Item Group": {"folder": "other"},
+    "Brand": {"folder": "other"},
 }
 
 extend_doctype_class = {
