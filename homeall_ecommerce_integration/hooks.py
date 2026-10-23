@@ -228,7 +228,8 @@ doc_events = {
 
 # Public images only. No image-field names are required.
 r2_upload_doctypes = {
-    "Item": {"folder": "items"}
+    "Item": {"folder": "items"},
+    "App Promotion": {"folder": "promotion"},
 }
 
 extend_doctype_class = {
