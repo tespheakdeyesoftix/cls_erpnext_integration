@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_rename": 1,
  "autoname": "UUID",
  "creation": "2026-10-14 11:07:26.917826",
  "doctype": "DocType",
@@ -55,9 +56,8 @@
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-17 08:49:07.277383",
+ "modified": "2026-10-22 10:32:26.899013",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App User Type",

@@ -2,14 +2,15 @@
 # See license.txt
 
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import frappe
-from frappe.tests import IntegrationTestCase
+from frappe.tests import IntegrationTestCase, UnitTestCase
 
 from homeall_ecommerce_integration.controller import is_valid_uuid
 from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_user.app_user_address import (
+	_validate_remote_price_list,
 	delete_user_address,
 	get_user_addresses,
 	save_user_address,
@@ -42,6 +43,11 @@ class FakeQuery:
 		if self.table_name == "administrative_locations":
 			code = next((value for fieldname, value in self.filters if fieldname == "code"), None)
 			rows = [{"code": code}] if code in self.supabase.location_codes else []
+			return SimpleNamespace(data=rows)
+
+		if self.table_name == "price_lists":
+			price_list_id = next((value for fieldname, value in self.filters if fieldname == "id"), None)
+			rows = [{"id": price_list_id}] if price_list_id in self.supabase.price_list_ids else []
 			return SimpleNamespace(data=rows)
 
 		if self.operation == "insert":
@@ -86,11 +92,60 @@ class FakeSupabase:
 	def __init__(self):
 		self.addresses = {}
 		self.location_codes = set()
+		self.price_list_ids = set()
 		self.fail_operations = set()
 		self.operations = []
 
 	def table(self, table_name):
 		return FakeTable(self, table_name)
+
+
+class UnitTestAppUserAddressPriceList(UnitTestCase):
+	def test_synced_price_list_is_accepted(self):
+		supabase = FakeSupabase()
+		price_list_id = str(uuid4())
+		supabase.price_list_ids.add(price_list_id)
+
+		_validate_remote_price_list(supabase, price_list_id, "Selling")
+
+	def test_missing_price_list_has_an_actionable_error(self):
+		with self.assertRaisesRegex(frappe.ValidationError, "Synchronize the Price List first"):
+			_validate_remote_price_list(FakeSupabase(), str(uuid4()), "Selling")
+
+	def test_price_list_read_failure_does_not_expose_remote_details(self):
+		supabase = FakeSupabase()
+		supabase.fail_operations.add("select")
+		with patch("frappe.log_error"):
+			with self.assertRaisesRegex(frappe.ValidationError, "Could not validate the Price List"):
+				_validate_remote_price_list(supabase, str(uuid4()), "Selling")
+
+	def test_missing_price_list_blocks_address_save_before_local_or_remote_writes(self):
+		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_user import (
+			app_user_address as module,
+		)
+
+		address = MagicMock()
+		price_list_id = str(uuid4())
+		values = frappe._dict(price_list="Selling")
+		with (
+			patch.object(module, "_get_app_user"),
+			patch.object(module, "_parse_values", return_value=values),
+			patch.object(module, "_validate_text"),
+			patch.object(module, "_get_location_values", return_value={}),
+			patch.object(module, "_get_price_list_id", return_value=price_list_id),
+			patch.object(module, "_get_owned_address", return_value=address),
+			patch.object(module, "_get_linked_addresses", return_value=[]),
+			patch.object(module, "init_supabase", return_value=FakeSupabase()),
+			patch.object(module, "_apply_values") as apply_values,
+			patch.object(module, "_sync_remote") as sync_remote,
+		):
+			with self.assertRaisesRegex(frappe.ValidationError, "Synchronize the Price List first"):
+				save_user_address(str(uuid4()), values, "Home-Shipping")
+
+		address.save.assert_not_called()
+		address.db_set.assert_not_called()
+		apply_values.assert_not_called()
+		sync_remote.assert_not_called()
 
 
 class IntegrationTestAppUserAddress(IntegrationTestCase):
@@ -103,6 +158,9 @@ class IntegrationTestAppUserAddress(IntegrationTestCase):
 		super().setUp()
 		self.app_user = self.make_app_user()
 		self.supabase = FakeSupabase()
+		self.supabase.price_list_ids.add(
+			frappe.db.get_value("Price List", "Standard Selling", "custom_supabase_id")
+		)
 
 	def make_app_user(self):
 		user_id = str(uuid4())

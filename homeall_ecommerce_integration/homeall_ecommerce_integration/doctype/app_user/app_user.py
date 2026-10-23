@@ -22,6 +22,15 @@ ACTIVE_STATUS = "Active"
 INACTIVE_STATUS = "Inactive"
 # GoTrue accepts Go-style durations. This effectively disables the account until it is enabled again.
 DISABLED_AUTH_BAN_DURATION = "876000h"
+PROFILE_FIELD_MAP = {
+	"username": "username",
+	"full_name": "full_name",
+	"email_address": "email",
+	"party": "erp_customer",
+	"is_dsku_user": "is_dsku_user",
+	"default_price_list": "default_price_list_id",
+	"user_type": "user_type_id",
+}
 
 
 def _normalize_username(username: str | None) -> str:
@@ -95,25 +104,25 @@ def _log_supabase_error(title: str, operation: str, error: Exception) -> None:
 	)
 
 
-def _update_profile_username(supabase, user_id: str, username: str) -> None:
+def _update_profile(supabase, user_id: str, values: dict) -> None:
 	response = (
 		supabase.table("profiles")
-		.update({"username": username})
+		.update(values)
 		.eq("id", user_id)
 		.execute()
 	)
 	rows = response.data or []
 	if len(rows) != 1 or str(rows[0].get("id")) != user_id:
-		raise ValueError("Profile username update did not return exactly one matching row")
+		raise ValueError("Profile update did not return exactly one matching row")
 
 
-def _restore_profile_username(supabase, user_id: str, username: str) -> None:
+def _restore_profile(supabase, user_id: str, values: dict) -> None:
 	try:
-		_update_profile_username(supabase, user_id, username)
+		_update_profile(supabase, user_id, values)
 	except Exception as error:
 		_log_supabase_error(
 			"Supabase App User Rollback Compensation Error",
-			"restore profile username",
+			"restore profile fields",
 			error,
 		)
 
@@ -122,6 +131,50 @@ def _validate_supabase_user_response(response, user_id: str, operation: str) -> 
 	response_user_id = getattr(getattr(response, "user", None), "id", None)
 	if str(response_user_id) != user_id:
 		raise ValueError(f"Supabase {operation} did not return the matching Auth user")
+
+
+def _auth_username_changes(supabase, user_id: str, username: str) -> tuple[dict, dict]:
+	response = supabase.auth.admin.get_user_by_id(user_id)
+	_validate_supabase_user_response(response, user_id, "username lookup")
+	user = response.user
+	metadata = user.user_metadata or {}
+	changes = {}
+	previous = {}
+	email = f"{username}@{DSKU_AUTH_DOMAIN}"
+	if user.email != email:
+		changes.update(email=email, email_confirm=True)
+		previous.update(email=user.email, email_confirm=bool(user.email_confirmed_at))
+	metadata_changes = {
+		field: username for field in ("username", "preferred_username") if metadata.get(field) != username
+	}
+	if metadata_changes:
+		changes["user_metadata"] = metadata_changes
+		previous["user_metadata"] = {field: metadata.get(field) for field in metadata_changes}
+	return changes, previous
+
+
+def _update_auth_username(supabase, user_id: str, values: dict) -> None:
+	response = supabase.auth.admin.update_user_by_id(user_id, values)
+	_validate_supabase_user_response(response, user_id, "username update")
+	user = response.user
+	if "email" in values and user.email != values["email"]:
+		raise ValueError("Supabase did not apply the Auth login email")
+	metadata = user.user_metadata or {}
+	if any(metadata.get(field) != value for field, value in values.get("user_metadata", {}).items()):
+		raise ValueError("Supabase did not apply the Auth username metadata")
+
+
+def _restore_user_update(supabase, user_id: str, profile_values: dict, auth_values: dict) -> None:
+	if auth_values:
+		try:
+			_update_auth_username(supabase, user_id, auth_values)
+		except Exception as error:
+			_log_supabase_error(
+				"Supabase App User Rollback Compensation Error", "restore Auth username", error
+			)
+	# Auth triggers may update profiles, so restore the profile after Auth.
+	if profile_values:
+		_restore_profile(supabase, user_id, profile_values)
 
 
 def _update_auth_enabled(supabase, user_id: str, enabled: bool) -> None:
@@ -337,8 +390,27 @@ class AppUser(Document):
 				"create Auth user",
 				error,
 			)
+			# Auth can contain accounts that have not been imported into ERP.
+			# Use known error codes rather than exposing the raw Auth response.
+			error_messages = {
+				"phone_exists": _(
+					"This phone number is already registered in Supabase Auth. "
+					"Use a different phone number or ask an administrator to locate the existing account."
+				),
+				"email_exists": _(
+					"This username is already registered in Supabase Auth. "
+					"Use a different username or ask an administrator to locate the existing account."
+				),
+				"user_already_exists": _(
+					"An account with this username or phone number already exists in Supabase Auth. "
+					"Use different details or ask an administrator to locate the existing account."
+				),
+			}
 			frappe.throw(
-				_("Could not create the Supabase Auth user. Please try again."),
+				error_messages.get(
+					getattr(error, "code", None),
+					_("Could not create the Supabase Auth user. Please try again."),
+				),
 				exc=frappe.ValidationError,
 			)
 
@@ -404,6 +476,10 @@ class AppUser(Document):
 			return
 
 		self.username = _normalize_username(self.username)
+		self.email_address = _normalize_email(self.email_address)
+		self.full_name = (self.full_name or "").strip()
+		if not self.full_name:
+			frappe.throw(_("Full Name is required."), exc=frappe.MandatoryError)
 		if frappe.db.exists(
 			"App User",
 			{"username": self.username, "name": ["!=", self.name]},
@@ -432,28 +508,74 @@ class AppUser(Document):
 			return
 
 		previous = self.get_doc_before_save()
-		if not previous or previous.username == self.username:
+		if not previous:
 			return
 
+		profile_payload = self._build_profile_payload()
+		profile_values = {column: profile_payload[column] for column in PROFILE_FIELD_MAP.values()}
 		supabase = init_supabase()
+
+		# Restore the actual remote values if the local transaction later rolls back.
 		try:
-			_update_profile_username(supabase, self.name, self.username)
+			response = (
+				supabase.table("profiles")
+				.select(",".join(profile_values))
+				.eq("id", self.name)
+				.limit(2)
+				.execute()
+			)
+			rows = response.data or []
+			if len(rows) != 1:
+				raise ValueError("Profile snapshot did not return exactly one matching row")
+			remote_values = {column: rows[0][column] for column in profile_values}
 		except Exception as error:
 			_log_supabase_error(
 				"Supabase App User Update Error",
-				"update profile username",
+				"read profile before update",
 				error,
 			)
 			frappe.throw(
-				_("Could not update the Supabase profile username. Please try again."),
+				_("Could not read the Supabase user profile. The App User was not updated."),
 				exc=frappe.ValidationError,
 			)
 
+		# A prior save may have persisted locally while the server ran older code.
+		# Compare with Supabase so saving again also repairs that existing drift.
+		changes = {column: value for column, value in profile_values.items() if value != remote_values[column]}
+		try:
+			auth_changes, previous_auth_values = _auth_username_changes(supabase, self.name, self.username)
+		except Exception as error:
+			_log_supabase_error("Supabase App User Update Error", "read Auth username before update", error)
+			frappe.throw(_("Could not read the Supabase login account. The App User was not updated."))
+		if not changes and not auth_changes:
+			return
+		if auth_changes:
+			# Reapply ERP profile values after any Auth triggers have run.
+			changes = profile_values
+		self._validate_remote_references(supabase, changes)
+		previous_values = {column: remote_values[column] for column in changes}
 		frappe.db.after_rollback.add(
-			lambda supabase=supabase, user_id=self.name, username=previous.username: (
-				_restore_profile_username(supabase, user_id, username)
+			lambda supabase=supabase, user_id=self.name, values=previous_values, auth=previous_auth_values: (
+				_restore_user_update(supabase, user_id, values, auth)
 			)
 		)
+		try:
+			if auth_changes:
+				_update_auth_username(supabase, self.name, auth_changes)
+			_update_profile(supabase, self.name, changes)
+		except Exception as error:
+			_log_supabase_error(
+				"Supabase App User Update Error",
+				"update Auth username and profile fields",
+				error,
+			)
+			_restore_user_update(supabase, self.name, previous_values, previous_auth_values)
+			if getattr(error, "code", None) in ("email_exists", "user_already_exists"):
+				frappe.throw(_("This username is already registered in Supabase Auth. Choose another username."))
+			frappe.throw(
+				_("Could not update the Supabase login account and profile. The App User was not updated."),
+				exc=frappe.ValidationError,
+			)
 
 	def before_rename(self, old_name: str, new_name: str, merge: bool = False) -> None:
 		frappe.throw(_("App User cannot be renamed because its name is the Supabase Auth UUID."))
@@ -513,7 +635,7 @@ class AppUser(Document):
 		)
 		if not is_valid_uuid(price_list_id):
 			frappe.throw(
-				_("Default Price List must have a valid Supabase ID before creating the App User."),
+				_("Default Price List must have a valid Supabase ID before saving the App User."),
 				exc=frappe.ValidationError,
 			)
 
@@ -569,6 +691,9 @@ class AppUser(Document):
 			rows = response.data or []
 			if len(rows) != 1 or str(rows[0].get("id")) != record_id:
 				frappe.throw(
-					_("{0} does not have a matching Supabase record.").format(label),
+					_(
+						"{0} does not have a matching Supabase record. "
+						"Synchronize it first, then save the App User again."
+					).format(label),
 					exc=frappe.ValidationError,
 				)

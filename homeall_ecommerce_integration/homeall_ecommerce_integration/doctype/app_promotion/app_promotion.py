@@ -27,7 +27,7 @@ class AppPromotion(Document):
 		business_id: DF.Link
 		card_action_product_id: DF.Link | None
 		card_action_type: DF.Literal["native_detail", "product_detail", "promotion_products", "webview"]
-		card_action_url: DF.Data | None
+		card_action_url: DF.SmallText | None
 		cart_qualification_uom: DF.Link | None
 		countdown_placement: DF.Literal["top_left", "top_center", "top_right", "bottom_left", "bottom_center", "bottom_right", "middle_left", "middle_right", "middle_center"]
 		description: DF.MarkdownEditor | None

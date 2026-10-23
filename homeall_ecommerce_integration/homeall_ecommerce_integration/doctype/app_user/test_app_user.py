@@ -6,10 +6,13 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import frappe
-from frappe.tests import IntegrationTestCase
+from frappe.tests import IntegrationTestCase, UnitTestCase
+from supabase_auth.errors import AuthApiError
 
 from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_user.app_user import (
 	DISABLED_AUTH_BAN_DURATION,
+	PROFILE_FIELD_MAP,
+	AppUser,
 	_normalize_cambodian_phone,
 	_normalize_username,
 	reset_app_user_password,
@@ -22,6 +25,290 @@ from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_use
 # Use these module variables to add/remove to/from that list
 EXTRA_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
 IGNORE_TEST_RECORD_DEPENDENCIES = ["Customer", "App User Type", "Price List"]
+
+
+class UnitTestAppUserCreationErrors(UnitTestCase):
+	def assert_creation_error(self, error, expected_message):
+		# Isolate the Auth failure from the local validation and database setup.
+		doc = MagicMock()
+		doc.username = "test.user"
+		doc.phone_number = "+85512345678"
+		doc.full_name = "Test User"
+		doc.name = None
+		doc.get.return_value = "a-secure-password"
+		supabase = MagicMock()
+		supabase.auth.admin.create_user.side_effect = error
+
+		with (
+			patch(f"{AppUser.__module__}.init_supabase", return_value=supabase),
+			patch("frappe.log_error") as log_error,
+		):
+			with self.assertRaises(frappe.ValidationError) as raised:
+				AppUser.before_insert(doc)
+
+		self.assertIn(expected_message, str(raised.exception))
+		self.assertNotIn(str(error), str(raised.exception))
+		self.assertNotIn(str(error), log_error.call_args.kwargs["message"])
+		supabase.auth.admin.create_user.assert_called_once()
+		supabase.table.assert_not_called()
+		supabase.auth.admin.delete_user.assert_not_called()
+		self.assertIsNone(doc.name)
+
+	def test_duplicate_auth_identity_explains_the_conflicting_field(self):
+		for code, expected_message in (
+			("phone_exists", "This phone number is already registered in Supabase Auth."),
+			("email_exists", "This username is already registered in Supabase Auth."),
+			("user_already_exists", "An account with this username or phone number already exists"),
+		):
+			with self.subTest(code=code):
+				self.assert_creation_error(
+					AuthApiError("Private Auth response", status=422, code=code),
+					expected_message,
+				)
+
+	def test_unknown_auth_error_keeps_the_generic_message(self):
+		self.assert_creation_error(
+			AuthApiError("Private Auth response", status=500, code="unexpected_failure"),
+			"Could not create the Supabase Auth user. Please try again.",
+		)
+
+	def test_unexpected_exception_keeps_the_generic_message(self):
+		self.assert_creation_error(
+			RuntimeError("Private connection details"),
+			"Could not create the Supabase Auth user. Please try again.",
+		)
+
+
+class UnitTestAppUserProfileSync(UnitTestCase):
+	def setUp(self):
+		self.user_id = str(uuid4())
+		self.values = {
+			"username": "test.user",
+			"full_name": "Test User",
+			"email_address": "contact@example.com",
+			"party": "Customer One",
+			"is_dsku_user": 1,
+			"default_price_list": "Selling",
+			"user_type": str(uuid4()),
+		}
+		self.payload = {column: self.values[field] for field, column in PROFILE_FIELD_MAP.items()}
+		self.payload.update(
+			is_dsku_user=True, default_price_list_id=str(uuid4()), phone="+85512345678", status="Active"
+		)
+		self.doc = MagicMock()
+		self.doc.name = self.user_id
+		self.doc.username = self.values["username"]
+		self.doc.flags = frappe._dict(in_insert=False)
+		self.doc.get_doc_before_save.return_value = frappe._dict(self.values.copy())
+		self.doc.get.side_effect = self.values.get
+		self.doc._build_profile_payload.return_value = self.payload
+		self.supabase = MagicMock()
+		self.auth_user = SimpleNamespace(
+			id=self.user_id,
+			email="test.user@dsku.invalid",
+			email_confirmed_at=True,
+			user_metadata={"username": "test.user", "preferred_username": "test.user", "other": "preserved"},
+		)
+		self.supabase.auth.admin.get_user_by_id.return_value = SimpleNamespace(user=self.auth_user)
+
+		def update_auth(user_id, values):
+			if "email" in values:
+				self.auth_user.email = values["email"]
+			self.auth_user.user_metadata.update(values.get("user_metadata", {}))
+			return SimpleNamespace(user=self.auth_user)
+
+		self.supabase.auth.admin.update_user_by_id.side_effect = update_auth
+		self.profiles = self.supabase.table.return_value
+		self.remote_values = self.payload.copy()
+		self.profiles.select.return_value.eq.return_value.limit.return_value.execute.return_value = (
+			SimpleNamespace(data=[self.remote_values])
+		)
+		self.profiles.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(
+			data=[{"id": self.user_id}]
+		)
+		self.db = MagicMock()
+		self.addCleanup(patch.stopall)
+		patch(f"{AppUser.__module__}.init_supabase", return_value=self.supabase).start()
+		patch("frappe.db", self.db).start()
+		patch("frappe.log_error").start()
+
+	def test_each_editable_profile_field_syncs_without_a_username_change(self):
+		for field, column in PROFILE_FIELD_MAP.items():
+			with self.subTest(field=field):
+				previous = frappe._dict(self.values.copy())
+				previous[field] = None
+				self.doc.get_doc_before_save.return_value = previous
+				self.remote_values.update(self.payload)
+				self.remote_values[column] = None
+				self.profiles.update.reset_mock()
+
+				AppUser.before_save(self.doc)
+
+				changes = {column: self.payload[column]}
+				self.profiles.update.assert_called_once_with(changes)
+				self.profiles.update.return_value.eq.assert_called_once_with("id", self.user_id)
+				self.doc._validate_remote_references.assert_called_with(self.supabase, changes)
+		self.supabase.auth.admin.update_user_by_id.assert_not_called()
+
+	def test_clearing_optional_fields_is_sent_to_supabase(self):
+		changes = {
+			"email": None,
+			"erp_customer": None,
+			"default_price_list_id": None,
+			"user_type_id": None,
+			"is_dsku_user": False,
+		}
+		for field, column in PROFILE_FIELD_MAP.items():
+			if column in changes:
+				self.values[field] = 0 if field == "is_dsku_user" else None
+				self.payload[column] = changes[column]
+
+		AppUser.before_save(self.doc)
+
+		self.profiles.update.assert_called_once_with(changes)
+
+	def test_rollback_restores_remote_values_even_when_erp_was_out_of_sync(self):
+		self.values["full_name"] = "Updated Name"
+		self.payload["full_name"] = "Updated Name"
+		self.remote_values["full_name"] = "Remote Name"
+
+		AppUser.before_save(self.doc)
+		self.profiles.update.reset_mock()
+		self.db.after_rollback.add.call_args.args[0]()
+
+		self.profiles.update.assert_called_once_with({"full_name": "Remote Name"})
+
+	def test_failed_update_raises_and_restores_the_remote_snapshot(self):
+		self.values["full_name"] = "Updated Name"
+		self.payload["full_name"] = "Updated Name"
+		self.profiles.update.return_value.eq.return_value.execute.side_effect = [
+			RuntimeError("Update response lost"),
+			SimpleNamespace(data=[{"id": self.user_id}]),
+		]
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.before_save(self.doc)
+
+		self.assertEqual(self.profiles.update.call_count, 2)
+		self.assertEqual(self.profiles.update.call_args.args[0], {"full_name": "Test User"})
+
+	def test_missing_profile_blocks_the_save_without_writing(self):
+		self.values["full_name"] = "Updated Name"
+		self.profiles.select.return_value.eq.return_value.limit.return_value.execute.return_value = (
+			SimpleNamespace(data=[])
+		)
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.before_save(self.doc)
+
+		self.profiles.update.assert_not_called()
+
+	def test_invalid_remote_reference_blocks_the_save_without_writing(self):
+		self.values["user_type"] = str(uuid4())
+		self.payload["user_type_id"] = self.values["user_type"]
+		self.doc._validate_remote_references.side_effect = frappe.ValidationError("Missing user type")
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.before_save(self.doc)
+
+		self.profiles.update.assert_not_called()
+
+	def test_unchanged_profile_skips_the_remote_update(self):
+		AppUser.before_save(self.doc)
+
+		self.profiles.update.assert_not_called()
+
+	def test_saving_unchanged_erp_values_repairs_existing_remote_drift(self):
+		self.remote_values.update(full_name="Outdated Name", erp_customer=None, user_type_id=None)
+
+		AppUser.before_save(self.doc)
+
+		self.profiles.update.assert_called_once_with(
+			{
+				"full_name": self.payload["full_name"],
+				"erp_customer": self.payload["erp_customer"],
+				"user_type_id": self.payload["user_type_id"],
+			}
+		)
+
+
+	def change_username(self):
+		self.values["username"] = "changed.user"
+		self.doc.username = "changed.user"
+		self.payload["username"] = "changed.user"
+
+	def test_username_change_updates_auth_login_and_preserves_other_metadata(self):
+		self.change_username()
+
+		AppUser.before_save(self.doc)
+
+		self.supabase.auth.admin.update_user_by_id.assert_called_once_with(
+			self.user_id,
+			{
+				"email": "changed.user@dsku.invalid",
+				"email_confirm": True,
+				"user_metadata": {"username": "changed.user", "preferred_username": "changed.user"},
+			},
+		)
+		self.assertEqual(self.auth_user.user_metadata["other"], "preserved")
+		self.profiles.update.assert_called_once_with(
+			{column: self.payload[column] for column in PROFILE_FIELD_MAP.values()}
+		)
+
+	def test_resaving_repairs_auth_even_when_profile_username_already_matches(self):
+		self.auth_user.email = "old.user@dsku.invalid"
+		self.auth_user.user_metadata.update(username="old.user", preferred_username="old.user")
+
+		AppUser.before_save(self.doc)
+
+		self.assertEqual(self.auth_user.email, "test.user@dsku.invalid")
+		self.assertEqual(self.auth_user.user_metadata["username"], "test.user")
+		self.profiles.update.assert_called_once()
+
+	def test_profile_failure_restores_the_old_login_identity(self):
+		self.change_username()
+		self.profiles.update.return_value.eq.return_value.execute.side_effect = [
+			RuntimeError("Profile unavailable"),
+			SimpleNamespace(data=[{"id": self.user_id}]),
+		]
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.before_save(self.doc)
+
+		self.assertEqual(self.auth_user.email, "test.user@dsku.invalid")
+		self.assertEqual(self.auth_user.user_metadata["username"], "test.user")
+		self.assertEqual(self.auth_user.user_metadata["other"], "preserved")
+
+	def test_rollback_restores_both_auth_and_profile_username(self):
+		self.change_username()
+		AppUser.before_save(self.doc)
+		self.profiles.update.reset_mock()
+
+		self.db.after_rollback.add.call_args.args[0]()
+
+		self.assertEqual(self.auth_user.email, "test.user@dsku.invalid")
+		self.assertEqual(self.auth_user.user_metadata["preferred_username"], "test.user")
+		self.assertEqual(self.profiles.update.call_args.args[0]["username"], "test.user")
+
+	def test_auth_conflict_rejects_the_save_with_a_clear_message(self):
+		self.change_username()
+		self.supabase.auth.admin.update_user_by_id.side_effect = AuthApiError(
+			"Email already exists", status=422, code="email_exists"
+		)
+
+		with self.assertRaisesRegex(frappe.ValidationError, "username is already registered"):
+			AppUser.before_save(self.doc)
+
+		self.assertEqual(self.auth_user.email, "test.user@dsku.invalid")
+
+	def test_auth_read_failure_prevents_any_profile_update(self):
+		self.supabase.auth.admin.get_user_by_id.side_effect = RuntimeError("Auth unavailable")
+
+		with self.assertRaisesRegex(frappe.ValidationError, "Could not read the Supabase login"):
+			AppUser.before_save(self.doc)
+
+		self.profiles.update.assert_not_called()
+		self.supabase.auth.admin.update_user_by_id.assert_not_called()
 
 
 class IntegrationTestAppUser(IntegrationTestCase):
@@ -51,9 +338,37 @@ class IntegrationTestAppUser(IntegrationTestCase):
 		supabase.auth.admin.update_user_by_id.return_value = SimpleNamespace(
 			user=SimpleNamespace(id=user_id)
 		)
+		auth_user = SimpleNamespace(
+			id=user_id,
+			email=f"{self.username}@dsku.invalid",
+			email_confirmed_at=True,
+			user_metadata={"username": self.username, "preferred_username": self.username},
+		)
+		supabase.auth.admin.get_user_by_id.return_value = SimpleNamespace(user=auth_user)
+
+		def update_auth(user_id, values):
+			if "email" in values:
+				auth_user.email = values["email"]
+			auth_user.user_metadata.update(values.get("user_metadata", {}))
+			return SimpleNamespace(user=auth_user)
+
+		supabase.auth.admin.update_user_by_id.side_effect = update_auth
 		profiles = MagicMock()
 		profiles.select.return_value.eq.return_value.limit.return_value.execute.return_value = (
-			SimpleNamespace(data=[{"id": user_id}])
+			SimpleNamespace(
+				data=[
+					{
+						"id": user_id,
+						"username": self.username,
+						"full_name": "New User",
+						"email": None,
+						"erp_customer": None,
+						"is_dsku_user": True,
+						"default_price_list_id": None,
+						"user_type_id": None,
+					}
+				]
+			)
 		)
 		profiles.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(
 			data=[{"id": user_id}]
@@ -139,7 +454,7 @@ class IntegrationTestAppUser(IntegrationTestCase):
 	def test_normalizes_username_to_lowercase(self):
 		self.assertEqual(_normalize_username(" New.User-1 "), "new.user-1")
 
-	def test_username_change_updates_only_supabase_profile(self):
+	def test_username_change_updates_supabase_profile_and_auth_login(self):
 		supabase = self.make_supabase()
 
 		with patch(self.INIT_SUPABASE, return_value=supabase):
@@ -152,12 +467,19 @@ class IntegrationTestAppUser(IntegrationTestCase):
 		self.assertEqual(doc.username, "changed.user")
 		doc.reload()
 		self.assertEqual(doc.username, "changed.user")
-		supabase.profiles.update.assert_called_once_with({"username": "changed.user"})
+		self.assertEqual(supabase.profiles.update.call_args.args[0]["username"], "changed.user")
 		supabase.profiles.update.return_value.eq.assert_called_once_with(
 			"id", self.auth_user_id
 		)
 		supabase.auth.admin.create_user.assert_called_once()
-		supabase.auth.admin.update_user_by_id.assert_not_called()
+		supabase.auth.admin.update_user_by_id.assert_called_once_with(
+			self.auth_user_id,
+			{
+				"email": "changed.user@dsku.invalid",
+				"email_confirm": True,
+				"user_metadata": {"username": "changed.user", "preferred_username": "changed.user"},
+			},
+		)
 
 	def test_username_change_registers_profile_rollback_compensation(self):
 		supabase = self.make_supabase()
@@ -184,7 +506,7 @@ class IntegrationTestAppUser(IntegrationTestCase):
 		supabase.profiles.update.reset_mock()
 		rollback_compensation()
 
-		supabase.profiles.update.assert_called_once_with({"username": self.username})
+		self.assertEqual(supabase.profiles.update.call_args.args[0]["username"], self.username)
 		supabase.profiles.update.return_value.eq.assert_called_once_with(
 			"id", self.auth_user_id
 		)

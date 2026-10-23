@@ -256,6 +256,28 @@ def _validate_remote_village(supabase, village_code: str | None) -> None:
 		frappe.throw(_("The selected village does not exist in Supabase."))
 
 
+def _validate_remote_price_list(supabase, price_list_id: str, price_list: str) -> None:
+	try:
+		response = (
+			supabase.table("price_lists")
+			.select("id")
+			.eq("id", price_list_id)
+			.limit(2)
+			.execute()
+		)
+	except Exception as error:
+		_log_error("Supabase Address Validation Error", "validate price list", error)
+		frappe.throw(_("Could not validate the Price List in Supabase. Please try again."))
+	rows = response.data or []
+	if len(rows) != 1 or str(rows[0].get("id")) != price_list_id:
+		frappe.throw(
+			_(
+				"Price List {0} does not have a matching Supabase record. "
+				"Synchronize the Price List first, then save the address again."
+			).format(frappe.bold(price_list))
+		)
+
+
 def _apply_values(
 	address: Any, values: frappe._dict, locations: dict, price_list_id: str
 ) -> None:
@@ -480,6 +502,7 @@ def save_user_address(app_user: str, values: dict | str, address_name: str | Non
 	before_addresses = _get_linked_addresses(app_user)
 	before = _snapshot(before_addresses, app_user)
 	supabase = init_supabase()
+	_validate_remote_price_list(supabase, price_list_id, values.price_list)
 	_validate_remote_village(supabase, values.village_code)
 	if address_name and cint(address.is_shipping_address) and not values.is_default:
 		replacement = next((item for item in before_addresses if item.name != address.name), None)

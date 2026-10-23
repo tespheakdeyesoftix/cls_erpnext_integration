@@ -35,6 +35,20 @@ def sync_price_list_queues():
     )  
 ## end sync price list
 
+## sync item price
+def sync_item_prices(name: str = None, batch_size: int = 100):
+    pass
+
+def sync_item_prices_queues(): 
+    frappe.enqueue(
+        "homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync.sync_item_prices", # python function or a module path as string
+        queue="long", # one of short, default, long
+        job_name="sync_item_prices", # specify a job name
+        # enqueue_after_commit=True,
+    )  
+## en
+## end sync item price
+
 ## sync app user type
 def sync_app_user_types(name: str = None, batch_size: int = 100):     
     return sync.sync_to_supabase(
@@ -694,7 +708,9 @@ def item_to_product(item, supabase_id, currency):
         "id": str(supabase_id) if supabase_id else None,
         "item_group_id": str(item.item_group_id) if item.item_group_id else None,
         "erp_item_code": item.item_code,
-        "name": item.item_name,
+        "name": item.custom_app_product_name or item.item_name ,
+        "name_kh": item.custom_app_product_name_kh_ or (item.custom_app_product_name or item.item_name) ,
+        "name_zn": item.custom_app_product_name_cn_ or (item.custom_app_product_name or item.item_name) ,
         "description": item.description or None,
         "brand": item.brand or None,
         "uom": item.stock_uom or None,

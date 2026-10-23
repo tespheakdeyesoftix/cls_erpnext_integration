@@ -11,8 +11,6 @@
   "business_id",
   "start_date",
   "end_date",
-  "show_countdown",
-  "show_sold_progress",
   "application_scope",
   "cart_qualification_uom",
   "maximum_cart_discount_amount",
@@ -34,6 +32,8 @@
   "flash_sale_setting_tab",
   "flash_banner_style",
   "show_upcoming",
+  "show_countdown",
+  "show_sold_progress",
   "upcoming_display",
   "flash_product_source",
   "flash_product_limit",
@@ -238,7 +238,7 @@
   },
   {
    "fieldname": "card_action_url",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "card_action_url"
   },
   {
@@ -323,7 +323,7 @@
  "image_field": "photo",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-21 13:45:46.680024",
+ "modified": "2026-10-23 09:37:55.459691",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App Promotion",

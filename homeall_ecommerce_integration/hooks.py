@@ -196,22 +196,26 @@ SYNC_DOCTYPES = [
     "App User Type",
     "App Promotion",
     "Price List",
+    "Item Price",
     "Brand",
     "Business Type",
     "Business Profile",
     "Item Group",
-    "Item",    
+    "Item",
 ]
 
 doc_events = {
-    **{ 
+    "*": {
+        "on_update": "homeall_ecommerce_integration.r2_storage.file_handler.sync_parent_attachments",
+    },
+    **{
         doctype: {
             "after_insert": "homeall_ecommerce_integration.controller.update_sync_status",
             "on_update": "homeall_ecommerce_integration.controller.update_sync_status",
             "after_rename": "homeall_ecommerce_integration.controller.update_sync_status",
         }
         for doctype in SYNC_DOCTYPES
-    },    
+    },
     "Item Price":{
         "on_update": "homeall_ecommerce_integration.controller.update_item",
     },
@@ -220,6 +224,21 @@ doc_events = {
         "on_update": "homeall_ecommerce_integration.file_attachment.on_update",
         "on_trash": "homeall_ecommerce_integration.file_attachment.on_trash",
     }
+}
+
+# Public images only. No image-field names are required.
+r2_upload_doctypes = {
+    "Item": {"folder": "items"},
+    "Customer": {"folder": "customers"},
+    "Supplier": {"folder": "suppliers"},
+}
+
+extend_doctype_class = {
+    "File": ["homeall_ecommerce_integration.r2_storage.file_handler.R2FileMixin"],
+}
+
+scheduler_events = {
+    "hourly": ["homeall_ecommerce_integration.r2_storage.storage.recover_pending"],
 }
 
 # Scheduled Tasks

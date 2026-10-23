@@ -1,0 +1,18 @@
+{
+  "r2_storage": {
+    "enabled": true,
+    "account_id": "REPLACE_WITH_32_CHARACTER_ACCOUNT_ID",
+    "access_key_id": "REPLACE_WITH_R2_ACCESS_KEY_ID",
+    "secret_access_key": "REPLACE_WITH_R2_SECRET_ACCESS_KEY",
+    "bucket": "erpnext-images",
+    "public_url": "https://images.example.com",
+    "key_prefix": "files",
+    "max_file_size_mb": 10,
+    "optimize_images": true,
+    "optimize_threshold_mb": 1,
+    "optimize_target_kb": 300,
+    "optimize_max_dimension": 1600,
+    "optimize_quality": 82,
+    "delete_on_file_delete": false
+  }
+}
