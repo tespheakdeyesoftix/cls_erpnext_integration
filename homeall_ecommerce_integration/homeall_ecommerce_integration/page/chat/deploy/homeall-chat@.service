@@ -1,0 +1,22 @@
+# Example: install as /etc/systemd/system/homeall-chat@.service
+# systemctl enable --now homeall-chat@homeall.dev
+[Unit]
+Description=Homeall support chat bridge for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=erpuser
+WorkingDirectory=/home/erpuser/homeall-bench-dev
+ExecStart=/home/erpuser/homeall-bench-dev/env/bin/python -m homeall_ecommerce_integration.homeall_ecommerce_integration.page.chat.bridge --site %i --sites-path /home/erpuser/homeall-bench-dev/sites
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

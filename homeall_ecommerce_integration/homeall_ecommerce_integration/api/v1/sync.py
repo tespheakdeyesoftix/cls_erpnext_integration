@@ -5,6 +5,7 @@ import uuid
 from homeall_ecommerce_integration.controller import is_valid_uuid,slugify
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import fn_sync_to_supabase as sync
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import app_promotion_sync as app_promotion
+from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import sync_item_price as item_price
 from postgrest.exceptions import APIError
 
 init_supabase = sync.init_supabase
@@ -12,7 +13,7 @@ init_supabase = sync.init_supabase
 @frappe.whitelist(methods=["POST"])
 def sync_data():
     frappe.only_for("System Manager")
-    return sync_price_list()
+    return sync_item_prices()
 
 ## sync price list
 def sync_price_list(name: str = None, batch_size: int = 100): 
@@ -37,7 +38,10 @@ def sync_price_list_queues():
 
 ## sync item price
 def sync_item_prices(name: str = None, batch_size: int = 100):
-    pass
+     return item_price.sync_to_supabase(
+        name=name,
+        batch_size=batch_size
+    ) 
 
 def sync_item_prices_queues(): 
     frappe.enqueue(
@@ -592,6 +596,7 @@ def prepare_price_list_data(record,supabase_id):
     }
     return data
 
+
 # prepare data of app user type
 def prepare_app_user_type_data(record):
     data = {
@@ -617,7 +622,7 @@ def prepare_business_type_data(record):
 def prepare_business_profile_data(record):
     modified = get_datetime(record.modified)
     if record.photo:
-        if record.photo.startswith("/files/") or record.photo.startswith("/private/files/") or record.photo.startswith("/api/method/frappe_s3_attachment"):
+        if record.photo.startswith("/files/") or record.photo.startswith("/private/files/"):
             record.photo = f"https://cloudsvr01.homeall.asia{record.photo}"
             
     data = {
@@ -642,7 +647,7 @@ def prepare_business_profile_data(record):
 # prepare data of brand
 def prepare_brand_data(record, supabase_id): 
     if record.image:
-        if record.image.startswith("/files/") or record.image.startswith("/private/files/") or record.image.startswith("/api/method/frappe_s3_attachment"):
+        if record.image.startswith("/files/") or record.image.startswith("/private/files/"):
             record.image = f"https://cloudsvr01.homeall.asia{record.image}"
             
     data = {
@@ -659,7 +664,7 @@ def prepare_brand_data(record, supabase_id):
 # prepare data of item group
 def prepare_item_group_data(item_group, supabase_id, parent_supabase_id):
     if item_group.image:
-        if item_group.image.startswith("/files/") or item_group.image.startswith("/private/files/") or item_group.image.startswith("/api/method/frappe_s3_attachment"):
+        if item_group.image.startswith("/files/") or item_group.image.startswith("/private/files/"):
             item_group.image = f"https://cloudsvr01.homeall.asia{item_group.image}"
             
     data = {
@@ -692,7 +697,7 @@ def item_to_product(item, supabase_id, currency):
     photo_urls = []
     for f in files:
         if f.file_url:
-            if f.file_url.startswith("/files/") or f.file_url.startswith("/private/files/") or f.file_url.startswith("/api/method/frappe_s3_attachment"):
+            if f.file_url.startswith("/files/") or f.file_url.startswith("/private/files/") :
                 f.file_url = f"https://cloudsvr01.homeall.asia{f.file_url}" 
                 
             photo_urls.append(str(f.file_url))
@@ -701,7 +706,7 @@ def item_to_product(item, supabase_id, currency):
     modified = get_datetime(item.modified)
     
     if item.image:
-        if item.image.startswith("/files/") or item.image.startswith("/private/files/") or item.image.startswith("/api/method/frappe_s3_attachment"):
+        if item.image.startswith("/files/") or item.image.startswith("/private/files/"):
             item.image = f"https://cloudsvr01.homeall.asia{item.image}"
             
     data = {
@@ -709,8 +714,8 @@ def item_to_product(item, supabase_id, currency):
         "item_group_id": str(item.item_group_id) if item.item_group_id else None,
         "erp_item_code": item.item_code,
         "name": item.custom_app_product_name or item.item_name ,
-        "name_kh": item.custom_app_product_name_kh_ or (item.custom_app_product_name or item.item_name) ,
-        "name_zn": item.custom_app_product_name_cn_ or (item.custom_app_product_name or item.item_name) ,
+        "name_km": item.custom_app_product_name_kh_ or (item.custom_app_product_name or item.item_name) ,
+        "name_zh": item.custom_app_product_name_cn_ or (item.custom_app_product_name or item.item_name) ,
         "description": item.description or None,
         "brand": item.brand or None,
         "uom": item.stock_uom or None,

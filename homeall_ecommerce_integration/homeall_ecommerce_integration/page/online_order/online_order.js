@@ -4,15 +4,22 @@ frappe.pages["online-order"].on_page_load = function (wrapper) {
 		title: "ការបញ្ជាទិញអនឡាញ",
 		single_column: true,
 	});
+	$(wrapper).on('hide.homeall-online-order', () => {
+		wrapper.onlineOrderVisible = false;
+		wrapper.onlineOrderApp?.destroy();
+		wrapper.onlineOrderApp = null;
+	});
 };
 
 frappe.pages["online-order"].on_page_show = function (wrapper) {
+	wrapper.onlineOrderVisible = true;
 	const $mount = $(wrapper).find(".layout-main-section");
 	$mount.empty();
 
 	frappe
 		.require(["online_order.bundle.js", "online_order.bundle.css"])
 		.then(() => {
+			if (!wrapper.onlineOrderVisible) return;
 			wrapper.onlineOrderApp?.destroy();
 			wrapper.onlineOrderApp = new frappe.ui.OnlineOrderPage({
 				wrapper: $mount,

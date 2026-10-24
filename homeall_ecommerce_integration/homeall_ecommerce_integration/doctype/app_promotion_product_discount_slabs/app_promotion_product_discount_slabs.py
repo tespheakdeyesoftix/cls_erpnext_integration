@@ -26,6 +26,7 @@ class AppPromotionProductDiscountSlabs(Document):
 		parentfield: DF.Data
 		parenttype: DF.Data
 		recurse_for: DF.Float
+		unit: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "App Promotion Product Discount Slabs"

@@ -15,6 +15,7 @@
   "max_amount",
   "column_break_znhq",
   "free_product_qty",
+  "unit",
   "is_recursive",
   "recurse_for",
   "apply_recursion_over"
@@ -77,13 +78,18 @@
    "fieldname": "apply_recursion_over",
    "fieldtype": "Float",
    "label": "Apply Recursion Over (As Per Transaction UOM)"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "UOM"
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-19 09:33:05.316778",
+ "modified": "2026-10-24 12:47:31.730268",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App Promotion Product Discount Slabs",

@@ -20,6 +20,7 @@ const state = reactive({
 
 let requestId = 0;
 let historyRequestId = 0;
+let detailRequestId = 0;
 
 export function useOrders() {
 	const firstRow = computed(() => (state.total ? (state.page - 1) * state.pageSize + 1 : 0));
@@ -146,11 +147,35 @@ export function useOrders() {
 	}
 
 	function openOrder(order) {
+		detailRequestId++;
 		order.status_history = [];
 		state.selectedOrder = order;
 		state.detailOpen = true;
 		void fetchOrderStatusHistory(order.id);
 	}
+
+	async function openOrderById(orderId) {
+		const version = ++detailRequestId;
+		historyRequestId++;
+		state.detailOpen = false;
+		state.selectedOrder = null;
+		state.detailLoading = true;
+		state.detailError = '';
+		try {
+			const response = await frappe.call({
+				method: 'homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.orders.get_order',
+				type: 'GET', args: { order_id: orderId },
+			});
+			if (version !== detailRequestId) return false;
+			state.selectedOrder = response.message;
+			state.detailOpen = true;
+			return true;
+		} catch {
+			if (version === detailRequestId) state.error = 'Unable to open this order. Check your access or try again.';
+			return false;
+		} finally { if (version === detailRequestId) state.detailLoading = false; }
+	}
+	function cancelDetailRequest() { detailRequestId++; historyRequestId++; }
 
 	return {
 		state,
@@ -163,5 +188,7 @@ export function useOrders() {
 		fetchOrderStatusHistory,
 		updateOrderStatus,
 		openOrder,
+		openOrderById,
+		cancelDetailRequest,
 	};
 }

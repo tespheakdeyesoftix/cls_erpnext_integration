@@ -1,5 +1,6 @@
 <script setup>
-import { onMounted } from "vue";
+import { onMounted, onUnmounted } from "vue";
+import { destination, listenForRoutes } from '../notifications/policy.mjs';
 import { Button } from "./frappeUi";
 import OrderDetailDialog from "./components/OrderDetailDialog.vue";
 import OrderFilters from "./components/OrderFilters.vue";
@@ -8,7 +9,30 @@ import OrderTable from "./components/OrderTable.vue";
 import { useOrders } from "./composables/useOrders";
 
 const store = useOrders();
-onMounted(store.fetchOrders);
+let lastLink = '';
+let stopRoutes = () => {};
+async function openLinkedOrder() {
+	const query = new URLSearchParams(window.location.search);
+	for (const key of ['order', 'homeall_event']) {
+		if (frappe.route_options?.[key]) query.set(key, frappe.route_options[key]);
+	}
+	const url = destination('/desk/online-order?' + query.toString(), location.origin);
+	if (!url || url.href === lastLink) return;
+	lastLink = url.href;
+	if (await store.openOrderById(url.searchParams.get('order'))) {
+		const eventId = url.searchParams.get('homeall_event');
+		if (eventId) frappe.call({ method: 'homeall_ecommerce_integration.notifications.api.mark_opened', args: { event_id: eventId } });
+	} else if (lastLink === url.href) lastLink = '';
+}
+onMounted(() => {
+	void store.fetchOrders();
+	void openLinkedOrder();
+	stopRoutes = listenForRoutes(frappe.router, openLinkedOrder, 'orders');
+});
+onUnmounted(() => {
+	stopRoutes();
+	store.cancelDetailRequest();
+});
 </script>
 
 <template>

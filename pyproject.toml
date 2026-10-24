@@ -8,6 +8,7 @@ requires-python = ">=3.14"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
+    "firebase-admin>=7.1,<8",
     # "frappe~=16.0.0" # Installed and managed by bench.
     "phonenumbers~=9.0",
     "supabase~=2.31.0",

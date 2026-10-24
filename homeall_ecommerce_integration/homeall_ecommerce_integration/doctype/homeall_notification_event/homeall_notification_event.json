@@ -1,0 +1,80 @@
+{
+ "doctype": "DocType",
+ "name": "Homeall Notification Event",
+ "module": "Homeall Ecommerce Integration",
+ "engine": "InnoDB",
+ "autoname": "field:event_id",
+ "field_order": [
+  "event_id",
+  "event_type",
+  "occurred_at",
+  "payload",
+  "destination",
+  "title",
+  "status",
+  "deliveries"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_id",
+   "label": "Event Id",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "event_type",
+   "label": "Event Type",
+   "fieldtype": "Select",
+   "options": "order_created\nchat_message",
+   "reqd": 1
+  },
+  {
+   "fieldname": "occurred_at",
+   "label": "Occurred At",
+   "fieldtype": "Data",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payload",
+   "label": "Payload",
+   "fieldtype": "Code",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "destination",
+   "label": "Destination",
+   "fieldtype": "Small Text"
+  },
+  {
+   "fieldname": "title",
+   "label": "Title",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "status",
+   "label": "Status",
+   "fieldtype": "Select",
+   "options": "Pending\nReady",
+   "default": "Pending",
+   "search_index": 1
+  },
+  {
+   "fieldname": "deliveries",
+   "label": "Deliveries",
+   "fieldtype": "Table",
+   "options": "Homeall Notification Delivery"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1
+  }
+ ],
+ "istable": 0,
+ "track_changes": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

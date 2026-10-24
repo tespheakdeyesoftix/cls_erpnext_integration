@@ -211,3 +211,7 @@ For final deployment validation, upload a public image through an Item's image f
 and its sidebar, confirm previews and URLs, then exercise Customer/Supplier images,
 private images, a PDF, replacement, and deletion policy. Public-domain routing and
 browser previews require an actual R2 object; mocked tests cannot verify them.
+
+## Order and chat notifications
+
+See [notification setup and rollout](homeall_ecommerce_integration/notifications/README.md) for Firebase, site_config.json, the API webhook outbox and device verification.

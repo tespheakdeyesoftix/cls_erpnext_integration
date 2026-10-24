@@ -1,0 +1,22 @@
+{
+  "id": "/homeall-erpnext",
+  "name": "Homeall ERPNext",
+  "short_name": "Homeall",
+  "start_url": "/desk/online-order",
+  "scope": "/desk/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/assets/homeall_ecommerce_integration/icons/dsku-notification-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/homeall_ecommerce_integration/icons/dsku-notification-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+ "doctype": "DocType",
+ "name": "Homeall Push Subscription",
+ "module": "Homeall Ecommerce Integration",
+ "engine": "InnoDB",
+ "autoname": "field:installation_id",
+ "field_order": [
+  "installation_id",
+  "user",
+  "token",
+  "token_hash",
+  "generation",
+  "enabled",
+  "session_hash",
+  "last_registered_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "installation_id",
+   "label": "Installation Id",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "user",
+   "label": "User",
+   "fieldtype": "Link",
+   "options": "User",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "token",
+   "label": "Token",
+   "fieldtype": "Password",
+   "reqd": 1,
+   "length": 4096
+  },
+  {
+   "fieldname": "token_hash",
+   "label": "Token Hash",
+   "fieldtype": "Data",
+   "search_index": 1
+  },
+  {
+   "fieldname": "generation",
+   "label": "Generation",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "enabled",
+   "label": "Enabled",
+   "fieldtype": "Check",
+   "default": "1",
+   "search_index": 1
+  },
+  {
+   "fieldname": "session_hash",
+   "label": "Session Hash",
+   "fieldtype": "Data",
+   "search_index": 1
+  },
+  {
+   "fieldname": "last_registered_at",
+   "label": "Last Registered At",
+   "fieldtype": "Datetime"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1
+  }
+ ],
+ "istable": 0,
+ "track_changes": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

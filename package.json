@@ -6,7 +6,9 @@
     "postinstall": "node scripts/patch-frappe-ui.mjs"
   },
   "dependencies": {
+    "firebase": "12.4.0",
     "frappe-ui": "0.1.50",
+    "pinia": "2.1.7",
     "vue-router": "4.1.6"
   }
 }

@@ -10,7 +10,6 @@ from frappe.utils import cint, cstr, getdate
 
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import init_supabase
 
-
 MAX_PAGE_SIZE = 100
 ORDER_FIELDS = (
 	"id,status,currency,total_quantity,subtotal,tax_amount,total_amount,erp_order_number,"
@@ -31,6 +30,27 @@ ORDER_STATUSES = frozenset(
 	}
 )
 PRODUCT_FIELDS = "id,erp_item_code,name,description,uom,price,currency,default_image_url"
+
+
+def _require_staff():
+	from homeall_ecommerce_integration.notifications.api import require_staff
+
+	require_staff()
+
+
+@frappe.whitelist(methods=["GET"])
+def get_order(order_id: str) -> dict[str, Any]:
+	"""Fetch an exact order regardless of the list's filters or current page."""
+	_require_staff()
+	order_id = _validate_order_id(order_id)
+	client = init_supabase()
+	rows = client.table("orders").select(ORDER_FIELDS).eq("id", order_id).limit(1).execute().data or []
+	if not rows:
+		frappe.throw(_("Order not found."), frappe.DoesNotExistError)
+	_enrich_order_items(rows)
+	order = rows[0]
+	order["status_history"] = _get_status_history(order_id, client)
+	return order
 
 
 def _parse_date(value: str | None, label: str) -> date | None:
@@ -123,6 +143,7 @@ def get_orders(
 	status: str | None = None,
 ) -> dict[str, Any]:
 	"""Return one filtered, newest-first page of Supabase orders."""
+	_require_staff()
 	page = max(cint(page), 1)
 	page_size = min(max(cint(page_size), 1), MAX_PAGE_SIZE)
 	start = _parse_date(start_date, _("ចាប់ផ្តើម"))
@@ -161,6 +182,7 @@ def get_orders(
 
 @frappe.whitelist(methods=["GET"])
 def get_order_status_history(order_id: str) -> dict[str, Any]:
+	_require_staff()
 	order_id = _validate_order_id(order_id)
 	client = init_supabase()
 	order = _get_order(order_id, client)
@@ -176,6 +198,7 @@ def update_order_status(
 	status: str,
 	reason: str | None = None,
 ) -> dict[str, Any]:
+	_require_staff()
 	order_id = _validate_order_id(order_id)
 	target_status = cstr(status).strip().lower()
 	if target_status not in ORDER_STATUSES:

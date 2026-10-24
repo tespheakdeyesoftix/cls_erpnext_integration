@@ -9,6 +9,12 @@ app_license = "mit"
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
 
+persistent_cache_keys = [
+	"homeall_chat:bridge",
+	"homeall_chat:message:",
+	"homeall_chat:health",
+]
+
 # Apps
 # ------------------
 
@@ -40,6 +46,9 @@ add_to_apps_screen = [
 # include js, css files in header of desk.html
 # app_include_css = "/assets/homeall_ecommerce_integration/css/homeall_ecommerce_integration.css"
 # app_include_js = "/assets/homeall_ecommerce_integration/js/homeall_ecommerce_integration.js"
+app_include_js = ["homeall_notifications.bundle.js"]
+on_logout = "homeall_ecommerce_integration.notifications.api.on_logout"
+before_request = ["homeall_ecommerce_integration.notifications.api.preserve_notification_login"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/homeall_ecommerce_integration/css/homeall_ecommerce_integration.css"
@@ -240,6 +249,9 @@ extend_doctype_class = {
 
 scheduler_events = {
     "hourly": ["homeall_ecommerce_integration.r2_storage.storage.recover_pending"],
+    "cron": {
+        "* * * * *": ["homeall_ecommerce_integration.notifications.worker.recover"],
+    },
 }
 
 # Scheduled Tasks
