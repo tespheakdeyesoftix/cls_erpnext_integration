@@ -12,8 +12,8 @@ init_supabase = sync.init_supabase
 
 @frappe.whitelist(methods=["POST"])
 def sync_data():
-    frappe.only_for("System Manager")
-    return sync_item_prices()
+    frappe.only_for("System Manager") 
+    return sync_products()
 
 ## sync price list
 def sync_price_list(name: str = None, batch_size: int = 100): 
@@ -299,15 +299,22 @@ def sync_item_groups_queues():
     )       
 
 # sync products
-def sync_products(batch_size=100):   
+@frappe.whitelist(methods=["POST"])
+def sync_products(name: str = None, batch_size: int = 100):   
     currency = frappe.defaults.get_global_default("currency")   
-    items = frappe.db.sql("""
+    sql = """
         SELECT *
         FROM `tabItem`
         WHERE IFNULL(custom_is_synced, 0) = 0
         AND custom_business_profile IS NOT NULL
         AND TRIM(custom_business_profile) != ''
-    """, as_dict=True)  
+    """
+    if name:
+        sql += " AND item_code = %(item_code)s"
+        items = frappe.db.sql(sql, {"item_code": name}, as_dict=True)
+    else:   
+        items = frappe.db.sql(sql, as_dict=True)  
+ 
     
     if not items:
         return {
@@ -712,6 +719,17 @@ def item_to_product(item, supabase_id, currency):
     if item.image:
         if item.image.startswith("/files/") or item.image.startswith("/private/files/"):
             item.image = f"https://cloudsvr01.homeall.asia{item.image}"
+    
+    uom_to_dict = []
+    uoms = [d for d in item.uoms if d.uom != item.stock_uom and d.custom_is_publish == 1 ]
+    if uoms:
+        for u in uoms:
+            uom_to_dict.append({
+                "uom":u.uom,
+                "conversion_factor":u.conversion_factor,
+                "allow_order":bool(u.custom_allow_online_order) 
+            })       
+        
             
     data = {
         "id": str(supabase_id) if supabase_id else None,
@@ -723,6 +741,7 @@ def item_to_product(item, supabase_id, currency):
         "description": item.description or None,
         "brand": item.brand or None,
         "uom": item.stock_uom or None,
+        "uoms": uom_to_dict,
         "default_image_url": item.image or None,
         "is_active": not bool(item.disabled),
         "is_stock_item": bool(item.is_stock_item),

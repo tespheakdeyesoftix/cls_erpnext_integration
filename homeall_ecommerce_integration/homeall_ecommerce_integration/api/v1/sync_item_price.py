@@ -106,7 +106,7 @@ def sync_to_supabase(name: str,batch_size: int = 100):
     if name:       
         filters = {
             "item_code": name,
-            "price_list": ["!=","Standard Selling"],
+            # "price_list": ["!=","Standard Selling"],
             "selling": 1
         } 
         result = frappe.db.get_value("Item Price", filters, ["name", "price_list"],as_dict=True)   
@@ -152,7 +152,7 @@ def sync_to_supabase(name: str,batch_size: int = 100):
     record_names = frappe.get_all(
             "Item Price",
             filters = {
-                "price_list": ["!=","Standard Selling"],
+                # "price_list": ["!=","Standard Selling"],
                 "selling": 1,
                 "custom_is_synced": 0
             } ,

@@ -6,9 +6,9 @@ const PROMOTION_SERVICE =
 
 frappe.ui.form.on("App Promotion", {
 	refresh(frm) {
-		if (frm.doc.docstatus == 0 || !frm.has_perm("write")) {
-			return;
-		}
+		// if (frm.doc.docstatus == 0 || !frm.has_perm("write")) {
+		// 	return;
+		// }
 
 		if (frm.doc.docstatus == 2) {
 			frm.add_custom_button(
