@@ -113,6 +113,7 @@ def sync_to_supabase(name: str,batch_size: int = 100):
                     
         if result:
             doc = frappe.get_doc("Item Price", result.name)
+           
             pl_supabase_id = frappe.db.get_value("Price List", result.price_list, "custom_supabase_id")
             if not is_valid_uuid(pl_supabase_id):
                 pl_supabase_id = str(uuid.uuid4())
@@ -173,6 +174,10 @@ def sync_to_supabase(name: str,batch_size: int = 100):
             data_list = []
             for record_name in batch_names:
                 doc = frappe.get_doc("Item Price", record_name)
+                item_supabase_id = frappe.db.get_value("Item", doc.item_code, "custom_supabase_id")
+                if not item_supabase_id:
+                    continue  # Skip if the item does not have a Supabase ID
+                    
                 pl_supabase_id = frappe.db.get_value("Price List", doc.price_list, "custom_supabase_id")
                 if not is_valid_uuid(pl_supabase_id):
                     pl_supabase_id = str(uuid.uuid4())

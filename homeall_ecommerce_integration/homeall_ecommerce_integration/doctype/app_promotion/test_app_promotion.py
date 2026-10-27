@@ -385,3 +385,125 @@ class TestAppPromotion(UnitTestCase):
 
 		set_value.assert_not_called()
 		rollback.assert_called_once()
+
+
+class TestAppPromotionGroupEligibility(UnitTestCase):
+	def setUp(self):
+		self.business_id = "22222222-2222-4222-8222-222222222222"
+		self.items = []
+		self.groups = {
+			"Group A": {"Group A", "Child A", "Grandchild A"},
+			"Group B": {"Group B"},
+		}
+
+	def _add_item(self, name, *, group="Group A", business="selected", published=1):
+		item = frappe._dict(
+			name=name,
+			item_group=group,
+			custom_business_profile=self.business_id if business == "selected" else business,
+			custom_is_publish=published,
+		)
+		self.items.append(item)
+		return item
+
+	def _query_items(self, doctype, *, filters, fields, limit_page_length):
+		self.assertEqual(doctype, "Item")
+		self.assertEqual(limit_page_length, 1)
+		matches = self.items
+		for field, value in filters.items():
+			if isinstance(value, list):
+				self.assertEqual(value[0], "in")
+				matches = [item for item in matches if item.get(field) in value[1]]
+			else:
+				matches = [item for item in matches if item.get(field) == value]
+		return [frappe._dict({field: item.get(field) for field in fields}) for item in matches[:limit_page_length]]
+
+	def _validate(self, **overrides):
+		doc = frappe._dict(
+			business_id=self.business_id,
+			apply_for=[frappe._dict(apply_for_type="Item Group", apply_for="Group A")],
+		)
+		doc.update(overrides)
+		errors = []
+		item_data = {item.name: item for item in self.items}
+		with (
+			patch.object(service, "_descendant_item_groups", side_effect=self.groups.__getitem__),
+			patch.object(service.frappe, "get_all", side_effect=self._query_items),
+			patch.object(service, "_get_item_data", side_effect=item_data.get),
+		):
+			service._validate_product_business_and_eligibility(doc, errors)
+		return errors
+
+	def test_mixed_business_group_with_five_published_matches_passes(self):
+		for position in range(5):
+			self._add_item(f"MATCH-{position}")
+		for position, business in enumerate((None, "", "other-business", None, "other-business")):
+			self._add_item(f"UNRELATED-{position}", business=business)
+
+		self.assertEqual(self._validate(), [])
+
+	def test_published_match_only_in_grandchild_group_passes(self):
+		self._add_item("UNRELATED", business="other-business")
+		self._add_item("NESTED-MATCH", group="Grandchild A")
+
+		self.assertEqual(self._validate(), [])
+
+	def test_groups_without_published_business_matches_fail(self):
+		for scenario in ("empty", "unpublished", "other-business", "unassigned", "outside-subtree"):
+			with self.subTest(scenario=scenario):
+				self.items = []
+				if scenario == "unpublished":
+					self._add_item("UNPUBLISHED", published=0)
+				elif scenario == "other-business":
+					self._add_item("OTHER-BUSINESS", business="other-business")
+				elif scenario == "unassigned":
+					self._add_item("UNASSIGNED", business=None)
+				elif scenario == "outside-subtree":
+					self._add_item("OUTSIDE", group="Group B")
+
+				self.assertEqual(
+					self._validate(),
+					[
+						"Item Group Group A and its child groups contain no published products "
+						f"assigned to Business Profile {self.business_id}."
+					],
+				)
+
+	def test_each_selected_group_requires_a_match(self):
+		self._add_item("MATCH-A")
+		apply_for = [
+			frappe._dict(apply_for_type="Item Group", apply_for=group)
+			for group in ("Group A", "Group B")
+		]
+		errors = self._validate(apply_for=apply_for)
+		self.assertEqual(len(errors), 1)
+		self.assertIn("Item Group Group B and its child groups", errors[0])
+
+		self._add_item("MATCH-B", group="Group B")
+		self.assertEqual(self._validate(apply_for=apply_for), [])
+
+	def test_explicit_products_from_another_business_still_fail(self):
+		self._add_item("GROUP-MATCH")
+		self._add_item("OTHER", business="other-business")
+		for overrides in (
+			{"apply_for": [frappe._dict(apply_for_type="Item", apply_for="OTHER")]},
+			{"product_discount_slabs": [frappe._dict(free_product="OTHER")]},
+			{"flash_banner_products": [frappe._dict(product="OTHER")]},
+			{"card_action_type": "product_detail", "card_action_product_id": "OTHER"},
+		):
+			with self.subTest(overrides=overrides):
+				self.assertEqual(
+					self._validate(**overrides),
+					[f"Item OTHER does not belong to Business Profile {self.business_id}."],
+				)
+
+	def test_manual_banner_product_in_grandchild_group_remains_eligible(self):
+		self._add_item("BANNER", group="Grandchild A")
+		self.assertEqual(
+			self._validate(
+				promotion_type="Flash Sale",
+				flash_product_source="manual",
+				flash_banner_products=[frappe._dict(product="BANNER")],
+			),
+			[],
+		)

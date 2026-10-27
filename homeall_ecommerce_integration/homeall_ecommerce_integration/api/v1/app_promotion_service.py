@@ -406,15 +406,21 @@ def _validate_product_business_and_eligibility(doc, errors: list[str]):
 		elif row.apply_for_type == "Item Group" and row.apply_for:
 			group_names = _descendant_item_groups(row.apply_for)
 			eligible_groups.update(group_names)
-			for item in frappe.get_all(
+			matching_items = frappe.get_all(
 				"Item",
-				filters={"item_group": ["in", list(group_names)]},
-				fields=["name", "custom_business_profile"],
-			):
-				if item.custom_business_profile != doc.business_id:
-					errors.append(
-						f"Item {item.name} in Item Group {row.apply_for} does not belong to Business Profile {doc.business_id}."
-					)
+				filters={
+					"item_group": ["in", list(group_names)],
+					"custom_business_profile": doc.business_id,
+					"custom_is_publish": 1,
+				},
+				fields=["name"],
+				limit_page_length=1,
+			)
+			if not matching_items:
+				errors.append(
+					f"Item Group {row.apply_for} and its child groups contain no published products "
+					f"assigned to Business Profile {doc.business_id}."
+				)
 
 	for row in doc.product_discount_slabs or []:
 		if row.free_product:
