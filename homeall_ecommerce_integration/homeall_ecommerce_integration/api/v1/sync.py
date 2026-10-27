@@ -219,6 +219,8 @@ def sync_brands():
             data_list.append(data)
             item_supabase_ids.append({
                 "name": brand.name,
+                "name_kh":brand.custom_brand_name_km or brand.name,
+                "name_zh":brand.custom_brand_name_zh or brand.name,
                 "supabase_id": supabase_id
             })
         # return data_list

@@ -11,6 +11,7 @@ from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync imp
 	sync_products_queues,
 	sync_item_prices_queues,
 	sync_app_user_types_queues, 
+ 	sync_price_list_queues,
 )
 
 class SyncHistory(Document): 
@@ -24,6 +25,7 @@ class SyncHistory(Document):
 			"Business Profile",
 			"Item Group",
 			"Item",
+			"Price List",
 			"Item Price",
    			"App User Type",
 		]
@@ -39,6 +41,8 @@ class SyncHistory(Document):
 				sync_item_groups_queues()
 			elif doc == "Item":
 				sync_products_queues()
+			elif doc == "Price List":
+				sync_price_list_queues()
 			elif doc == "Item Price":
 				sync_item_prices_queues()
 			elif doc == "App User Type":
