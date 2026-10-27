@@ -6,10 +6,32 @@ const PROMOTION_SERVICE =
 
 frappe.ui.form.on("App Promotion", {
 	refresh(frm) {
-		if (frm.doc.docstatus ==2 || !frm.has_perm("write")) {
+		if (frm.doc.docstatus == 0 || !frm.has_perm("write")) {
 			return;
 		}
-		
+
+		if (frm.doc.docstatus == 2) {
+			frm.add_custom_button(
+				__("Remove Promotion from App"),
+				() => {
+					frappe.confirm(
+						__(
+							"This action will disable the promotion in the app. If the promotion has no orders, its record will be deleted from the app database. Do you want to continue?"
+						),
+						() =>
+							run_promotion_action(
+								frm,
+								"remove_promotion_from_app",
+								__("Removing promotion from app..."),
+								__("Promotion disabled or deleted from the App Database"),
+								true
+							)
+					);
+				},
+				__("Sync to App Database")
+			);
+			return;
+		}
 
 		frm.add_custom_button(
 			__("Submit to App Database (Supabase)"),

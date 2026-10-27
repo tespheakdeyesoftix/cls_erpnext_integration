@@ -671,6 +671,8 @@ def prepare_item_group_data(item_group, supabase_id, parent_supabase_id):
         "id": supabase_id,
         "parent_id": parent_supabase_id,
         "name": item_group.name,
+        "name_km": item_group.custom_item_group_name_km or item_group.name,
+        "name_zh": item_group.custom_item_group_name_zh or item_group.name,
         "image_url": item_group.image,
         "sort_order": item_group.custom_sort_order,
         "is_new": bool(item_group.custom_is_new),

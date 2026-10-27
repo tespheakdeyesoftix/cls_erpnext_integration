@@ -54,6 +54,22 @@ def submit_to_app_database(name: str):
 
 
 @frappe.whitelist(methods=["POST"])
+def remove_promotion_from_app(name: str):
+	frappe.only_for("System Manager")
+	if not name:
+		frappe.throw("App Promotion is required.")
+
+	doc = frappe.get_doc("App Promotion", name)
+	doc.check_permission("write")
+	if doc.docstatus != 2:
+		frappe.throw("Only cancelled App Promotions can be removed from the App Database.")
+	if not is_valid_uuid(doc.name):
+		frappe.throw("The App Promotion name must be a valid UUID.")
+
+	return _execute_promotion_rpc(doc.name, "disable_promotion", id_parameter="promotion_id")
+
+
+@frappe.whitelist(methods=["POST"])
 def generate_promotion_pricing_rules(name: str):
 	frappe.only_for("System Manager")
 	doc = _get_submitted_promotion(name, require_synced=True)
@@ -111,11 +127,13 @@ def _upsert_promotion(doc):
 		raise
 
 
-def _execute_promotion_rpc(promotion_id: str, rpc_name: str):
+def _execute_promotion_rpc(
+	promotion_id: str, rpc_name: str, *, id_parameter: str = "p_promotion_id"
+):
 	try:
 		response = (
 			sync.init_supabase()
-			.rpc(rpc_name, {"p_promotion_id": promotion_id})
+			.rpc(rpc_name, {id_parameter: promotion_id})
 			.execute()
 		)
 		return {"success": True, "promotion_id": promotion_id, "data": response.data}
@@ -449,6 +467,8 @@ def _prepare_record(record):
 	return {
 		"id": record.name,
 		"name": record.title,
+		"name_km": record.title_km or record.title,
+		"name_zh": record.title_zh or record.title,
 		"description": record.description or "",
 		"photo_url": _public_photo_url(record.photo),
 		"start_date": _promotion_timestamp(record.start_date, record.promotion_type, is_end=False),
@@ -509,6 +529,7 @@ def _prepare_record(record):
 		"maximum_cart_discount_amount": (
 			flt(record.maximum_cart_discount_amount) if record.maximum_cart_discount_amount else None
 		),
+		"disabled": record.disabled or False
 	}
 
 

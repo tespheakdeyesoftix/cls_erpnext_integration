@@ -242,6 +242,90 @@ class TestAppPromotion(UnitTestCase):
 		):
 			service._get_submitted_promotion(doc.name, require_synced=True)
 
+	def test_removal_calls_disable_rpc_for_cancelled_unsynced_promotion(self):
+		doc = frappe._dict(
+			name="11111111-1111-4111-8111-111111111111",
+			docstatus=2,
+			is_synced=0,
+			check_permission=MagicMock(),
+		)
+		supabase = MagicMock()
+		supabase.rpc.return_value.execute.return_value = SimpleNamespace(data=None)
+
+		with (
+			patch.object(service.frappe, "only_for") as only_for,
+			patch.object(service.frappe, "get_doc", return_value=doc),
+			patch.object(service.sync, "init_supabase", return_value=supabase),
+		):
+			result = service.remove_promotion_from_app(doc.name)
+
+		only_for.assert_called_once_with("System Manager")
+		doc.check_permission.assert_called_once_with("write")
+		supabase.rpc.assert_called_once_with("disable_promotion", {"promotion_id": doc.name})
+		self.assertTrue(result["success"])
+
+	def test_removal_rejects_non_cancelled_promotions_and_invalid_uuid(self):
+		for status, name in (
+			(0, "11111111-1111-4111-8111-111111111111"),
+			(1, "11111111-1111-4111-8111-111111111111"),
+			(2, "invalid-uuid"),
+		):
+			with self.subTest(docstatus=status, name=name):
+				doc = frappe._dict(name=name, docstatus=status, check_permission=MagicMock())
+				with (
+					patch.object(service.frappe, "only_for"),
+					patch.object(service.frappe, "get_doc", return_value=doc),
+					patch.object(service.sync, "init_supabase") as init_supabase,
+					self.assertRaises(frappe.ValidationError),
+				):
+					service.remove_promotion_from_app(name)
+				init_supabase.assert_not_called()
+
+	def test_removal_checks_system_manager_before_loading_document(self):
+		with (
+			patch.object(service.frappe, "only_for", side_effect=frappe.PermissionError),
+			patch.object(service.frappe, "get_doc") as get_doc,
+			self.assertRaises(frappe.PermissionError),
+		):
+			service.remove_promotion_from_app("11111111-1111-4111-8111-111111111111")
+
+		get_doc.assert_not_called()
+
+	def test_removal_rejects_document_permission_failure(self):
+		doc = frappe._dict(
+			name="11111111-1111-4111-8111-111111111111",
+			docstatus=2,
+			check_permission=MagicMock(side_effect=frappe.PermissionError),
+		)
+		with (
+			patch.object(service.frappe, "only_for"),
+			patch.object(service.frappe, "get_doc", return_value=doc),
+			patch.object(service.sync, "init_supabase") as init_supabase,
+			self.assertRaises(frappe.PermissionError),
+		):
+			service.remove_promotion_from_app(doc.name)
+
+		init_supabase.assert_not_called()
+
+	def test_removal_propagates_rpc_failure(self):
+		doc = frappe._dict(
+			name="11111111-1111-4111-8111-111111111111",
+			docstatus=2,
+			check_permission=MagicMock(),
+		)
+		supabase = MagicMock()
+		supabase.rpc.return_value.execute.side_effect = RuntimeError("offline")
+		with (
+			patch.object(service.frappe, "only_for"),
+			patch.object(service.frappe, "get_doc", return_value=doc),
+			patch.object(service.sync, "init_supabase", return_value=supabase),
+			patch.object(service, "_log_supabase_error") as log_error,
+			self.assertRaisesRegex(RuntimeError, "offline"),
+		):
+			service.remove_promotion_from_app(doc.name)
+
+		log_error.assert_called_once_with("Promotion RPC: disable_promotion", doc.name)
+
 	def test_submit_endpoint_checks_system_manager_before_loading_document(self):
 		with (
 			patch.object(service.frappe, "only_for", side_effect=frappe.PermissionError),

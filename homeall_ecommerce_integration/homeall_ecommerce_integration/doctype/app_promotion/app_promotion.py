@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Tes Pheakdey and contributors
 # For license information, please see license.txt
 
-# import frappe
+import frappe
 from frappe.model.document import Document
 
 
@@ -53,6 +53,8 @@ class AppPromotion(Document):
 		start_date: DF.Datetime
 		terms_and_conditions: DF.MarkdownEditor | None
 		title: DF.Data
+		title_km: DF.Data | None
+		title_zh: DF.Data | None
 		upcoming_display: DF.Literal["label", "countdown"]
 	# end: auto-generated types
 
@@ -68,3 +70,10 @@ class AppPromotion(Document):
 	def on_update_after_submit(self):
 		if self.is_synced:
 			self.db_set("is_synced", 0, update_modified=False)
+
+	def on_cancel(self):
+		self.db_set("disabled", 1, update_modified=False)
+		frappe.msgprint(
+			"Use Sync to App Database > Remove Promotion from App to disable this promotion in the app. "
+			"If it has no orders, its record will be deleted from the app database."
+		)
