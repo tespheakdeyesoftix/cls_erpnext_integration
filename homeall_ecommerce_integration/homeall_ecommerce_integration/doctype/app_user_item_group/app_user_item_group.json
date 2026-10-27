@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-10-27 16:08:14.726502",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_group",
+  "supabase_id",
+  "include_all_descendant"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fetch_from": "item_group.custom_supabase_id",
+   "fieldname": "supabase_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Supabase ID",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "include_all_descendant",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Include All Descendant "
+  }
+ ],
+ "grid_page_length": 50,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-27 16:18:11.197048",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "App User Item Group",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

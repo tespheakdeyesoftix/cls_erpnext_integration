@@ -2,7 +2,7 @@
 # See license.txt
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 from uuid import uuid4
 
 import frappe
@@ -311,6 +311,113 @@ class UnitTestAppUserProfileSync(UnitTestCase):
 		self.supabase.auth.admin.update_user_by_id.assert_not_called()
 
 
+class UnitTestAppUserItemGroupSync(UnitTestCase):
+	def setUp(self):
+		self.user_id = str(uuid4())
+		self.group_id = str(uuid4())
+		self.doc = MagicMock()
+		self.doc.name = self.user_id
+		self.doc.get.return_value = [
+			frappe._dict(idx=1, item_group="Products", supabase_id=self.group_id, include_all_descendant=1)
+		]
+		self.doc._build_item_group_payload.side_effect = lambda: AppUser._build_item_group_payload(self.doc)
+		self.previous_rows = [
+			{"user_id": self.user_id, "item_group_id": str(uuid4()), "include_all_descendant": False}
+		]
+		self.supabase = MagicMock()
+		self.table = self.supabase.table.return_value
+		self.table.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(
+			data=self.previous_rows
+		)
+		self.db = MagicMock()
+		self.addCleanup(patch.stopall)
+		patch(f"{AppUser.__module__}.init_supabase", return_value=self.supabase).start()
+		patch("frappe.db", self.db).start()
+		patch("frappe.log_error").start()
+
+	def test_replaces_only_this_users_assignments_with_mapped_values(self):
+		self.doc.get.return_value.append(
+			frappe._dict(idx=2, item_group="Other Products", supabase_id=str(uuid4()), include_all_descendant=0)
+		)
+
+		AppUser.on_update(self.doc)
+
+		self.assertTrue(all(table_call.args == ("user_item_groups",) for table_call in self.supabase.table.call_args_list))
+		self.table.select.return_value.eq.assert_called_once_with("user_id", self.user_id)
+		self.table.delete.return_value.eq.assert_called_once_with("user_id", self.user_id)
+		rows = self.table.insert.call_args.args[0]
+		self.assertEqual(
+			rows,
+			[
+				{
+					"user_id": self.user_id,
+					"item_group_id": row.supabase_id,
+					"include_all_descendant": bool(row.include_all_descendant),
+				}
+				for row in self.doc.get.return_value
+			],
+		)
+		self.assertLess(
+			self.table.mock_calls.index(call.delete().eq("user_id", self.user_id).execute()),
+			self.table.mock_calls.index(call.insert(rows)),
+		)
+
+	def test_clearing_all_assignments_deletes_without_an_empty_insert(self):
+		self.doc.get.return_value = []
+
+		AppUser.on_update(self.doc)
+
+		self.table.delete.return_value.eq.assert_called_once_with("user_id", self.user_id)
+		self.table.delete.return_value.eq.return_value.execute.assert_called_once()
+		self.table.insert.assert_not_called()
+
+	def test_failed_insert_restores_previous_assignments_and_blocks_save(self):
+		self.table.insert.return_value.execute.side_effect = [
+			RuntimeError("Insert failed"), SimpleNamespace(data=[])
+		]
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.on_update(self.doc)
+
+		self.assertEqual(self.table.delete.call_count, 2)
+		self.assertEqual(self.table.insert.call_args.args[0], self.previous_rows)
+
+	def test_rollback_restores_previous_assignments(self):
+		AppUser.on_update(self.doc)
+		self.table.reset_mock()
+
+		self.db.after_rollback.add.call_args.args[0]()
+
+		self.table.delete.return_value.eq.assert_called_once_with("user_id", self.user_id)
+		self.table.insert.assert_called_once_with(self.previous_rows)
+
+	def test_snapshot_failure_does_not_delete_assignments(self):
+		self.table.select.return_value.eq.return_value.execute.side_effect = RuntimeError("Read failed")
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.on_update(self.doc)
+
+		self.table.delete.assert_not_called()
+		self.table.insert.assert_not_called()
+
+	def test_missing_or_invalid_supabase_id_does_not_delete_assignments(self):
+		for group_id in (None, "not-a-uuid"):
+			with self.subTest(group_id=group_id):
+				self.doc.get.return_value[0].supabase_id = group_id
+				with self.assertRaises(frappe.ValidationError):
+					AppUser.on_update(self.doc)
+
+		self.supabase.table.assert_not_called()
+
+	def test_duplicate_item_groups_are_rejected_before_deleting_assignments(self):
+		self.doc.get.return_value.append(self.doc.get.return_value[0].copy())
+
+		with self.assertRaises(frappe.ValidationError):
+			AppUser.on_update(self.doc)
+
+		self.supabase.table.assert_not_called()
+
+
 class IntegrationTestAppUser(IntegrationTestCase):
 	"""
 	Integration tests for AppUser.
@@ -374,10 +481,14 @@ class IntegrationTestAppUser(IntegrationTestCase):
 			data=[{"id": user_id}]
 		)
 		profiles.delete.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[])
+		user_item_groups = MagicMock()
+		user_item_groups.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[])
 		supabase.table.side_effect = lambda table_name: {
 			"profiles": profiles,
+			"user_item_groups": user_item_groups,
 		}[table_name]
 		supabase.profiles = profiles
+		supabase.user_item_groups = user_item_groups
 		return supabase
 
 	def make_app_user(self, **values):
@@ -391,6 +502,43 @@ class IntegrationTestAppUser(IntegrationTestCase):
 		}
 		data.update(values)
 		return frappe.get_doc(data)
+
+	def test_item_groups_sync_on_insert_and_child_table_only_save(self):
+		group_id = str(uuid4())
+		group = frappe.get_doc(
+			{
+				"doctype": "Item Group",
+				"item_group_name": f"App User Test {uuid4().hex[:8]}",
+				"parent_item_group": "All Item Groups",
+				"custom_supabase_id": group_id,
+			}
+		).insert()
+		supabase = self.make_supabase()
+
+		with patch(self.INIT_SUPABASE, return_value=supabase):
+			doc = self.make_app_user(
+				allow_item_groups=[{"item_group": group.name, "include_all_descendant": 1}]
+			).insert()
+			expected = [
+				{"user_id": self.auth_user_id, "item_group_id": group_id, "include_all_descendant": True}
+			]
+			supabase.user_item_groups.insert.assert_called_once_with(expected)
+
+			supabase.profiles.update.reset_mock()
+			supabase.user_item_groups.reset_mock()
+			doc.allow_item_groups[0].include_all_descendant = 0
+			doc.save()
+			expected[0]["include_all_descendant"] = False
+			supabase.user_item_groups.insert.assert_called_once_with(expected)
+			supabase.profiles.update.assert_not_called()
+			doc.reload()
+			self.assertEqual(doc.allow_item_groups[0].include_all_descendant, 0)
+
+			supabase.user_item_groups.reset_mock()
+			doc.set("allow_item_groups", [])
+			doc.save()
+			supabase.user_item_groups.delete.return_value.eq.assert_called_once_with("user_id", doc.name)
+			supabase.user_item_groups.insert.assert_not_called()
 
 	def test_provisions_auth_and_profile_using_auth_id_as_name(self):
 		supabase = self.make_supabase()

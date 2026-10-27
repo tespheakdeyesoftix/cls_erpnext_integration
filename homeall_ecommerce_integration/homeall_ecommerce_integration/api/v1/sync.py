@@ -306,6 +306,7 @@ def sync_products(name: str = None, batch_size: int = 100):
         SELECT *
         FROM `tabItem`
         WHERE IFNULL(custom_is_synced, 0) = 0
+        AND disabled = 0
         AND custom_business_profile IS NOT NULL
         AND TRIM(custom_business_profile) != ''
     """

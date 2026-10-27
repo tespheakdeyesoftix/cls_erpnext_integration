@@ -127,6 +127,21 @@ def _restore_profile(supabase, user_id: str, values: dict) -> None:
 		)
 
 
+def _replace_user_item_groups(supabase, user_id: str, rows: list[dict]) -> None:
+	supabase.table("user_item_groups").delete().eq("user_id", user_id).execute()
+	if rows:
+		supabase.table("user_item_groups").insert(rows).execute()
+
+
+def _restore_user_item_groups(supabase, user_id: str, rows: list[dict]) -> None:
+	try:
+		_replace_user_item_groups(supabase, user_id, rows)
+	except Exception as error:
+		_log_supabase_error(
+			"Supabase App User Rollback Compensation Error", "restore user item groups", error
+		)
+
+
 def _validate_supabase_user_response(response, user_id: str, operation: str) -> None:
 	response_user_id = getattr(getattr(response, "user", None), "id", None)
 	if str(response_user_id) != user_id:
@@ -341,7 +356,9 @@ class AppUser(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_user_item_group.app_user_item_group import AppUserItemGroup
 
+		allow_item_groups: DF.Table[AppUserItemGroup]
 		default_price_list: DF.Link | None
 		email_address: DF.Data | None
 		full_name: DF.Data | None
@@ -362,6 +379,7 @@ class AppUser(Document):
 		password = self.get("password")
 		self._validate_creation_values(password)
 		self._validate_unique_identity()
+		self._build_item_group_payload()
 
 		profile_payload = self._build_profile_payload()
 		supabase = init_supabase()
@@ -472,6 +490,8 @@ class AppUser(Document):
 		if self.name and not str(self.name).startswith("new-") and not is_valid_uuid(self.name):
 			frappe.throw(_("App User name must be a valid Supabase Auth UUID."))
 
+		self._build_item_group_payload()
+
 		if self.is_new():
 			return
 
@@ -576,6 +596,67 @@ class AppUser(Document):
 				_("Could not update the Supabase login account and profile. The App User was not updated."),
 				exc=frappe.ValidationError,
 			)
+
+	def on_update(self) -> None:
+		# Frappe calls on_update for both inserts and updates, including child-table-only edits.
+		rows = self._build_item_group_payload()
+		supabase = init_supabase()
+		try:
+			response = (
+				supabase.table("user_item_groups")
+				.select("user_id,item_group_id,include_all_descendant")
+				.eq("user_id", self.name)
+				.execute()
+			)
+			previous_rows = response.data or []
+		except Exception as error:
+			_log_supabase_error("Supabase App User Item Group Sync Error", "read user item groups", error)
+			frappe.throw(
+				_("Could not read the Supabase user item groups. The App User was not saved."),
+				exc=frappe.ValidationError,
+			)
+
+		frappe.db.after_rollback.add(
+			lambda supabase=supabase, user_id=self.name, rows=previous_rows: (
+				_restore_user_item_groups(supabase, user_id, rows)
+			)
+		)
+		try:
+			_replace_user_item_groups(supabase, self.name, rows)
+		except Exception as error:
+			_log_supabase_error("Supabase App User Item Group Sync Error", "replace user item groups", error)
+			_restore_user_item_groups(supabase, self.name, previous_rows)
+			frappe.throw(
+				_("Could not sync the Supabase user item groups. The App User was not saved."),
+				exc=frappe.ValidationError,
+			)
+
+	def _build_item_group_payload(self) -> list[dict]:
+		rows = []
+		seen = set()
+		for row in self.get("allow_item_groups") or []:
+			if not row.item_group or not is_valid_uuid(row.supabase_id):
+				frappe.throw(
+					_("Row {0}: select an Item Group with a valid Supabase ID before saving the App User.").format(
+						row.idx
+					),
+					exc=frappe.ValidationError,
+				)
+			item_group_id = str(row.supabase_id)
+			if item_group_id in seen:
+				frappe.throw(
+					_("Row {0}: Item Group is assigned more than once.").format(row.idx),
+					exc=frappe.ValidationError,
+				)
+			seen.add(item_group_id)
+			rows.append(
+				{
+					"user_id": self.name,
+					"item_group_id": item_group_id,
+					"include_all_descendant": bool(cint(row.include_all_descendant)),
+				}
+			)
+		return rows
 
 	def before_rename(self, old_name: str, new_name: str, merge: bool = False) -> None:
 		frappe.throw(_("App User cannot be renamed because its name is the Supabase Auth UUID."))

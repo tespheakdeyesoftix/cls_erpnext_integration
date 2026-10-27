@@ -6,7 +6,8 @@ from homeall_ecommerce_integration.controller import is_valid_uuid
 from postgrest.exceptions import APIError
 
 
-def sync_to_supabase(name: str,batch_size: int = 100):
+@frappe.whitelist(methods=["POST"])
+def sync_to_supabase(name: str=None,batch_size: int = 100):
     """
     Generic Frappe to Supabase synchronization.
 
@@ -126,9 +127,15 @@ def sync_to_supabase(name: str,batch_size: int = 100):
                 )
                 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import sync_price_list                
                 sync_price_list(name=result.price_list)
-                
-            product_supabase_id = frappe.db.get_value("Item", doc.item_code, "custom_supabase_id")
-            
+                 
+            product_supabase_id = frappe.db.get_value("Item", {"name": doc.item_code, "custom_is_synced": 1}, "custom_supabase_id") 
+            if not product_supabase_id:
+                return {
+                    "success": False,
+                    "synced_count": 0,
+                    "message": f"Item with code {doc.item_code} is not synced to Supabase"
+                }
+
             doc.supabase_price_list_id = pl_supabase_id   
             doc.supabase_product_id = product_supabase_id   
             data = prepare_record(doc)
@@ -170,41 +177,41 @@ def sync_to_supabase(name: str,batch_size: int = 100):
 
     total_synced = 0
     for i in range(0, len(record_names), batch_size):
-            batch_names = record_names[i:i + batch_size]    
-            data_list = []
-            for record_name in batch_names:
-                doc = frappe.get_doc("Item Price", record_name)
-                item_supabase_id = frappe.db.get_value("Item", doc.item_code, "custom_supabase_id")
-                if not item_supabase_id:
-                    continue  # Skip if the item does not have a Supabase ID
-                    
-                pl_supabase_id = frappe.db.get_value("Price List", doc.price_list, "custom_supabase_id")
-                if not is_valid_uuid(pl_supabase_id):
-                    pl_supabase_id = str(uuid.uuid4())
-                    frappe.db.set_value(
-                        "Price List",
-                        doc.price_list,
-                        "custom_supabase_id",
-                        pl_supabase_id,
-                        update_modified=False
-                    )
-                    from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import sync_price_list                
-                    sync_price_list(name=doc.price_list)
-                    
-                product_supabase_id = frappe.db.get_value("Item", doc.item_code, "custom_supabase_id")
+        batch_names = record_names[i:i + batch_size]    
+        data_list = []
+        for record_name in batch_names:
+            doc = frappe.get_doc("Item Price", record_name)
+            product_supabase_id = frappe.db.get_value("Item", {"name": doc.item_code, "custom_is_synced": 1}, "custom_supabase_id") 
+            if not product_supabase_id:
+                continue  # Skip if the item does not have a Supabase ID
                 
-                doc.supabase_price_list_id = pl_supabase_id
-                doc.supabase_product_id = product_supabase_id
-                data = prepare_record(doc)
-                data_list.append(data)
+            pl_supabase_id = frappe.db.get_value("Price List", doc.price_list, "custom_supabase_id")
+            if not is_valid_uuid(pl_supabase_id):
+                pl_supabase_id = str(uuid.uuid4())
+                frappe.db.set_value(
+                    "Price List",
+                    doc.price_list,
+                    "custom_supabase_id",
+                    pl_supabase_id,
+                    update_modified=False
+                )
+                from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import sync_price_list                
+                sync_price_list(name=doc.price_list)
                 
-            synced_count = upsert_records(
-                data_list=data_list,
-                record_names=batch_names
-            )
-    
-            total_synced += synced_count
-    
+            
+            
+            doc.supabase_price_list_id = pl_supabase_id
+            doc.supabase_product_id = product_supabase_id
+            data = prepare_record(doc)
+            data_list.append(data)
+            
+        synced_count = upsert_records(
+            data_list=data_list,
+            record_names=batch_names
+        )
+
+        total_synced += synced_count
+
     return {
         "success": total_synced == len(record_names),
         "synced_count": total_synced,

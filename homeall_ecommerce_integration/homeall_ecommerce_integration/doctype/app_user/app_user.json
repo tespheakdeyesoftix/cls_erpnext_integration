@@ -13,12 +13,14 @@
   "full_name",
   "party",
   "user_type",
+  "column_break_pynx",
   "default_price_list",
+  "status",
+  "photo",
   "is_dsku_user",
   "is_homeall_user",
-  "status",
-  "column_break_pynx",
-  "photo",
+  "allow_item_groups_section",
+  "allow_item_groups",
   "user_address_tab",
   "html_user_addresses"
  ],
@@ -114,15 +116,25 @@
    "hidden": 1,
    "in_list_view": 1,
    "label": "Status",
-   "read_only": 1,
-   "options": "Active\nInactive"
+   "options": "Active\nInactive",
+   "read_only": 1
+  },
+  {
+   "fieldname": "allow_item_groups_section",
+   "fieldtype": "Section Break",
+   "label": "Allow Item Groups"
+  },
+  {
+   "fieldname": "allow_item_groups",
+   "fieldtype": "Table",
+   "label": "Allow Item Groups",
+   "options": "App User Item Group"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
- "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-19 14:14:43.846638",
+ "modified": "2026-10-27 16:16:00.338398",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App User",
