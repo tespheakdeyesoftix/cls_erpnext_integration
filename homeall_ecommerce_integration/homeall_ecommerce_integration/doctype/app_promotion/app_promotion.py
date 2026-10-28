@@ -14,15 +14,11 @@ class AppPromotion(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_promotion_applicable_for.app_promotion_applicable_for import AppPromotionApplicableFor
-		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_promotion_apply_for.app_promotion_apply_for import AppPromotionApplyFor
-		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_promotion_price_discount_slabs.app_promotion_price_discount_slabs import AppPromotionPriceDiscountSlabs
-		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_promotion_product_discount_slabs.app_promotion_product_discount_slabs import AppPromotionProductDiscountSlabs
 		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.flash_sale_banner_product.flash_sale_banner_product import FlashSaleBannerProduct
 
 		amended_from: DF.Link | None
 		applicable_for: DF.Table[AppPromotionApplicableFor]
 		application_scope: DF.Literal["product_line", "eligible_cart", "entire_cart"]
-		apply_for: DF.Table[AppPromotionApplyFor]
 		badge_bg_color: DF.Color | None
 		business_id: DF.Link
 		card_action_product_id: DF.Link | None
@@ -43,9 +39,8 @@ class AppPromotion(Document):
 		is_synced: DF.Check
 		maximum_cart_discount_amount: DF.Currency
 		photo: DF.AttachImage | None
-		price_discount_slabs: DF.Table[AppPromotionPriceDiscountSlabs]
 		priority: DF.Int
-		product_discount_slabs: DF.Table[AppPromotionProductDiscountSlabs]
+		promotion_rules: DF.JSON | None
 		promotion_type: DF.Literal["Standard", "Flash Sale"]
 		show_countdown: DF.Check
 		show_sold_progress: DF.Check

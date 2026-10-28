@@ -306,7 +306,6 @@ def sync_products(name: str = None, batch_size: int = 100):
         SELECT *
         FROM `tabItem`
         WHERE IFNULL(custom_is_synced, 0) = 0
-        AND disabled = 0
         AND custom_business_profile IS NOT NULL
         AND TRIM(custom_business_profile) != ''
     """
@@ -358,21 +357,47 @@ def sync_products(name: str = None, batch_size: int = 100):
     # --------------------------------------------------
     product_data_list = []        
     item_supabase_ids = []
-    sup = init_supabase()       
+    sup = init_supabase()   
     
     for item in items:  
         supabase_id = item.custom_supabase_id
-        # Reuse an existing valid UUID.
+        prices = frappe.db.sql(
+            """
+            SELECT MAX(price_list_rate) AS price_list_rate
+            FROM `tabItem Price`
+            WHERE item_code = %(item_code)s
+            AND uom = %(uom)s
+            AND price_list = %(price_list)s
+            """,
+            {
+                "item_code": item.name,
+                "uom": item.stock_uom,
+                "price_list": "Standard Selling",
+            },
+            as_dict=True,
+        )
+
+         # Reuse an existing valid UUID or generate a new one.
         if not is_valid_uuid(supabase_id):
             supabase_id = str(uuid.uuid4())
-            # Persist the ID before the remote request.
-            frappe.db.set_value(
-                "Item",
-                item.name,
-                "custom_supabase_id",
-                supabase_id,
-                update_modified=False,
-            )
+            
+        # Persist the ID before the remote request.
+        # Get the maximum price, defaulting to 0 when NULL.
+        standard_rate = (
+            prices[0].price_list_rate or 0
+            if prices
+            else 0
+        )
+        
+        frappe.db.set_value(
+            "Item",
+            item.name,
+           {
+                "custom_supabase_id":supabase_id,
+                "standard_rate": standard_rate
+           },
+            update_modified=False,
+        )
         
         # Resolve the Item Group's Supabase UUID.
         item_group_id = item_group_map.get(item.item_group)
@@ -380,8 +405,7 @@ def sync_products(name: str = None, batch_size: int = 100):
         item_doc = frappe.get_doc("Item", item.name)
         
         # Provide the mapped ID expected by item_to_product().
-        item_doc.item_group_id = item_group_id
-        
+        item_doc.item_group_id = item_group_id        
         product_data = item_to_product(
             item_doc,
             supabase_id,
@@ -668,6 +692,7 @@ def prepare_brand_data(record, supabase_id):
         "sort_order": record.custom_sort_order,
         "is_feature": bool(record.custom_is_feature),
         "is_publish": bool(record.custom_is_publish),
+        "show_in_dsku":bool(record.custom_show_in_dsku_)
     }
     return data           
 
@@ -741,6 +766,7 @@ def item_to_product(item, supabase_id, currency):
         "name_zh": item.custom_app_product_name_cn_ or (item.custom_app_product_name or item.item_name) ,
         "description": item.description or None,
         "brand": item.brand or None,
+        "price": item.standard_rate or 0,
         "uom": item.stock_uom or None,
         "uoms": uom_to_dict,
         "default_image_url": item.image or None,

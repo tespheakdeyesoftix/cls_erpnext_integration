@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -11,10 +12,14 @@ from frappe.utils import cint, cstr, getdate
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import init_supabase
 
 MAX_PAGE_SIZE = 100
+ORDER_SEARCH_BATCH_SIZE = 500
 ORDER_FIELDS = (
 	"id,status,currency,total_quantity,subtotal,tax_amount,total_amount,erp_order_number,"
 	"erp_sync_status,request_items,created_at,updated_at,delivery_address_snapshot,"
-	"payment_method,payment_status,note"
+	"payment_method,payment_status,note,erp_customer,pricing_user_type_name,"
+	"discount_amount,product_discount_amount,cart_discount_amount,"
+	"payment_transaction_id,payment_reference,payment_expires_at,payment_qr_image_url,"
+	"items:order_items(*),applied_cart_promotions:order_promotions(*)"
 )
 ORDER_STATUS_HISTORY_FIELDS = "id,order_id,from_status,to_status,reason,changed_by,changed_at"
 ORDER_STATUSES = frozenset(
@@ -70,6 +75,13 @@ def _validate_order_id(value: str | None) -> str:
 		frappe.throw(_("លេខសម្គាល់ការបញ្ជាទិញមិនត្រឹមត្រូវ"))
 
 
+def _normalize_order_search(value: str | None) -> str:
+	search = cstr(value).strip().removeprefix("#").strip().lower()
+	if search and not re.fullmatch(r"[0-9a-f-]{1,36}", search):
+		frappe.throw(_("សូមបញ្ចូល UUID ឬផ្នែកនៃ UUID សម្រាប់ស្វែងរកការបញ្ជាទិញ"))
+	return search
+
+
 def _get_order(order_id: str, client: Any) -> dict[str, Any]:
 	response = (
 		client
@@ -99,11 +111,8 @@ def _get_status_history(order_id: str, client: Any) -> list[dict[str, Any]]:
 
 
 def _get_order_items(order: dict[str, Any]) -> list[dict[str, Any]]:
-	request_items = order.get("request_items") or {}
-	if not isinstance(request_items, dict):
-		return []
-
-	items = request_items.get("items") or []
+	# Checkout requests omit awarded gifts and the final, persisted pricing.
+	items = order.get("items") or []
 	return items if isinstance(items, list) else []
 
 
@@ -134,6 +143,47 @@ def _enrich_order_items(orders: list[dict[str, Any]]) -> None:
 		order["items"] = enriched_items
 
 
+def _apply_order_filters(query: Any, start: date | None, end: date | None, status: str | None):
+	if start:
+		query = query.gte("created_at", start.isoformat())
+	if end:
+		query = query.lt("created_at", (end + timedelta(days=1)).isoformat())
+	if status:
+		query = query.eq("status", status)
+	return query
+
+
+def _search_order_ids(client, search, start, end, status, offset, page_size):
+	# PostgREST cannot apply LIKE to UUIDs or cast them in filters. Read only IDs,
+	# match their text here, then load details for the requested matching page.
+	matching_ids = []
+	total = 0
+	scanned = 0
+	candidate_count = None
+	while True:
+		query = client.table("orders").select("id", count="exact" if scanned == 0 else None)
+		query = _apply_order_filters(query, start, end, status)
+		response = (
+			query.order("created_at", desc=True).order("id", desc=True)
+			.range(scanned, scanned + ORDER_SEARCH_BATCH_SIZE - 1).execute()
+		)
+		if response.count is not None:
+			candidate_count = response.count
+		rows = response.data or []
+		if not rows:
+			break
+		for row in rows:
+			order_id = str(row["id"])
+			if search in order_id.lower():
+				if offset <= total < offset + page_size:
+					matching_ids.append(order_id)
+				total += 1
+		scanned += len(rows)
+		if candidate_count is not None and scanned >= candidate_count:
+			break
+	return matching_ids, total
+
+
 @frappe.whitelist(methods=["GET"])
 def get_orders(
 	page: int | str = 1,
@@ -141,6 +191,7 @@ def get_orders(
 	start_date: str | None = None,
 	end_date: str | None = None,
 	status: str | None = None,
+	search_id: str | None = None,
 ) -> dict[str, Any]:
 	"""Return one filtered, newest-first page of Supabase orders."""
 	_require_staff()
@@ -149,6 +200,7 @@ def get_orders(
 	start = _parse_date(start_date, _("ចាប់ផ្តើម"))
 	end = _parse_date(end_date, _("បញ្ចប់"))
 	selected_status = cstr(status).strip().lower() or None
+	search = _normalize_order_search(search_id)
 
 	if selected_status and selected_status not in ORDER_STATUSES:
 		frappe.throw(_("ស្ថានភាពការបញ្ជាទិញមិនត្រឹមត្រូវ"))
@@ -157,20 +209,24 @@ def get_orders(
 		frappe.throw(_("ថ្ងៃចាប់ផ្តើមមិនអាចនៅក្រោយថ្ងៃបញ្ចប់បានទេ"))
 
 	offset = (page - 1) * page_size
-	query = init_supabase().table("orders").select(ORDER_FIELDS, count="exact")
-
-	if start:
-		query = query.gte("created_at", start.isoformat())
-	if end:
-		query = query.lt("created_at", (end + timedelta(days=1)).isoformat())
-	if selected_status:
-		query = query.eq("status", selected_status)
-
-	response = query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
-	orders = response.data or []
+	client = init_supabase()
+	if search:
+		matching_ids, total = _search_order_ids(
+			client, search, start, end, selected_status, offset, page_size,
+		)
+		orders = []
+		if matching_ids:
+			response = client.table("orders").select(ORDER_FIELDS).in_("id", matching_ids).execute()
+			by_id = {str(row["id"]): row for row in (response.data or [])}
+			orders = [by_id[order_id] for order_id in matching_ids if order_id in by_id]
+	else:
+		query = client.table("orders").select(ORDER_FIELDS, count="exact")
+		query = _apply_order_filters(query, start, end, selected_status)
+		response = query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
+		orders = response.data or []
+		total = response.count or 0
 	_enrich_order_items(orders)
 
-	total = response.count or 0
 	return {
 		"orders": orders,
 		"page": page,

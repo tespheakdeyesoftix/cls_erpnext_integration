@@ -1,3 +1,4 @@
+import json
 import math
 import re
 from datetime import datetime, time
@@ -15,6 +16,16 @@ from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import (
 
 CAMBODIA_TIMEZONE = ZoneInfo("Asia/Phnom_Penh")
 PRICE_DISCOUNT_TYPES = {"Rate", "Discount Percentage", "Discount Amount"}
+RULE_NUMERIC_FIELDS = {
+	"apply_for": ("limit_qty", "max_qty_per_order", "max_qty_per_user"),
+	"price_discount_slabs": (
+		"min_qty", "max_qty", "min_amount", "max_amount", "rate", "discount_amount", "discount_percentage",
+	),
+	"product_discount_slabs": (
+		"min_qty", "max_qty", "min_amount", "max_amount", "free_product_quantity",
+		"recurse_for", "apply_recursion_over",
+	),
+}
 CARD_ACTION_TYPES = {"native_detail", "product_detail", "promotion_products", "webview"}
 COUNTDOWN_PLACEMENTS = {
 	"top_left",
@@ -151,6 +162,7 @@ def _log_supabase_error(operation: str, promotion_id: str):
 
 def validate_promotion(doc):
 	errors: list[str] = []
+	rules = _parse_promotion_rules(doc.get("promotion_rules"))
 
 	if not is_valid_uuid(doc.name):
 		errors.append("The App Promotion name must be a valid UUID.")
@@ -161,7 +173,7 @@ def validate_promotion(doc):
 	_validate_dates(doc, errors)
 	_validate_display_settings(doc, errors)
 	_validate_card_action(doc, errors)
-	qualification_basis = _validate_discount_slabs(doc, errors)
+	qualification_basis = _validate_discount_slabs(rules, errors)
 
 	if (
 		qualification_basis == "quantity"
@@ -176,7 +188,8 @@ def validate_promotion(doc):
 		errors.append("Maximum Cart Discount Amount cannot be negative.")
 
 	_validate_dependency_uuids(doc, errors)
-	_validate_product_business_and_eligibility(doc, errors)
+	references = _validate_rule_dependencies(rules, errors)
+	_validate_product_business_and_eligibility(doc, rules, references, errors)
 
 	if errors:
 		frappe.throw("Promotion validation failed:\n- " + "\n- ".join(_unique(errors)))
@@ -266,25 +279,62 @@ def _validate_card_action(doc, errors: list[str]):
 			errors.append("Card Action URL must be a valid HTTPS URL for webview.")
 
 
-def _validate_discount_slabs(doc, errors: list[str]):
-	price_basis = _validate_slab_rows(
-		list(doc.price_discount_slabs or []),
-		"Price Discount Slabs",
-		errors,
-		_validate_price_slab_value,
-	)
-	product_basis = _validate_slab_rows(
-		list(doc.product_discount_slabs or []),
-		"Product Discount Slabs",
-		errors,
-		_validate_product_slab_value,
-	)
+def _parse_promotion_rules(value):
+	if value is None or (isinstance(value, str) and not value.strip()):
+		return []
+	if isinstance(value, str):
+		try:
+			value = json.loads(value)
+		except (TypeError, ValueError):
+			frappe.throw("Promotion Rules must contain a valid JSON array.")
+	if not isinstance(value, list):
+		frappe.throw("Promotion Rules must be a JSON array.")
 
-	bases = price_basis | product_basis
-	if len(bases) > 1:
-		errors.append("All discount slabs must use the same quantity or amount qualification basis.")
+	for index, rule in enumerate(value, start=1):
+		if not isinstance(rule, dict):
+			frappe.throw(f"Promotion Rule {index} must be a JSON object.")
+		for fieldname, numeric_fields in RULE_NUMERIC_FIELDS.items():
+			rows = rule.get(fieldname, [])
+			if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+				frappe.throw(f"Promotion Rule {index}: {fieldname} must be an array of row objects.")
+			for position, row in enumerate(rows, start=1):
+				for numeric_field in numeric_fields:
+					number = row.get(numeric_field)
+					if number is not None and (
+						isinstance(number, bool) or not isinstance(number, int | float) or not math.isfinite(number)
+					):
+						frappe.throw(
+							f"Promotion Rule {index} {fieldname} row {position}: {numeric_field} must be a finite number."
+						)
+	return value
 
-	return next(iter(bases), None) if len(bases) == 1 else None
+
+def _validate_discount_slabs(rules, errors: list[str]):
+	all_bases: set[str] = set()
+	for index, rule in enumerate(rules, start=1):
+		price_basis = _validate_slab_rows(
+			rule.get("price_discount_slabs", []),
+			f"Promotion Rule {index} Price Discount Slabs",
+			errors,
+			_validate_price_slab_value,
+		)
+		product_basis = _validate_slab_rows(
+			rule.get("product_discount_slabs", []),
+			f"Promotion Rule {index} Product Discount Slabs",
+			errors,
+			_validate_product_slab_value,
+		)
+		bases = price_basis | product_basis
+		if len(bases) > 1:
+			errors.append(
+				f"Promotion Rule {index}: all discount slabs must use the same quantity or amount qualification basis."
+			)
+		all_bases.update(bases)
+
+	# Independent rules can use different bases; any quantity rule needs a cart UOM.
+	if "quantity" in all_bases:
+		return "quantity"
+	return "amount" if "amount" in all_bases else None
 
 
 def _validate_slab_rows(rows, label: str, errors: list[str], value_validator):
@@ -338,16 +388,21 @@ def _validate_slab_rows(rows, label: str, errors: list[str], value_validator):
 
 
 def _validate_price_slab_value(row, label: str, row_number: int, errors: list[str]):
-	if row.get("rate_or_discount") not in PRICE_DISCOUNT_TYPES:
+	discount_type = row.get("rate_or_discount")
+	if not isinstance(discount_type, str) or discount_type not in PRICE_DISCOUNT_TYPES:
 		errors.append(f"{label} row {row_number} has an invalid Discount Type.")
-	if flt(row.get("price_or_discount_value")) <= 0:
+		return
+	value_field = {
+		"Rate": "rate",
+		"Discount Percentage": "discount_percentage",
+		"Discount Amount": "discount_amount",
+	}[discount_type]
+	if flt(row.get(value_field)) <= 0:
 		errors.append(f"{label} row {row_number} must have a Price or Discount Value greater than zero.")
 
 
 def _validate_product_slab_value(row, label: str, row_number: int, errors: list[str]):
-	if not row.get("free_product"):
-		errors.append(f"{label} row {row_number} requires a Free Product.")
-	if flt(row.get("free_product_qty")) <= 0:
+	if flt(row.get("free_product_quantity")) <= 0:
 		errors.append(f"{label} row {row_number} must have a Free Product Qty greater than zero.")
 
 
@@ -358,20 +413,43 @@ def _validate_dependency_uuids(doc, errors: list[str]):
 			continue
 		_check_dependency_uuid(row.applicable_for_type, row.applicable_for, errors)
 
-	for row in doc.apply_for or []:
-		if row.apply_for_type not in {"Item", "Item Group"}:
-			errors.append(f"Apply For row {row.idx} has an unsupported type.")
-			continue
-		_check_dependency_uuid(row.apply_for_type, row.apply_for, errors)
-
-	for row in doc.product_discount_slabs or []:
-		_check_dependency_uuid("Item", row.free_product, errors)
-
 	for row in doc.flash_banner_products or []:
 		_check_dependency_uuid("Item", row.product, errors)
 
 	if doc.card_action_type == "product_detail":
 		_check_dependency_uuid("Item", doc.card_action_product_id, errors)
+
+
+def _validate_rule_dependencies(rules, errors: list[str]):
+	"""Resolve the UUIDs already stored in JSON to local records for validation only."""
+	references: dict[tuple[str, str], str | None] = {}
+
+	def resolve(doctype, value, label):
+		if not isinstance(value, str) or not is_valid_uuid(value):
+			errors.append(f"{label} requires a valid {doctype} Supabase UUID.")
+			return
+		key = (doctype, value)
+		if key not in references:
+			references[key] = frappe.db.get_value(doctype, {"custom_supabase_id": value}, "name")
+		if not references[key]:
+			errors.append(f"{label}: no local {doctype} matches Supabase UUID {value}.")
+
+	for index, rule in enumerate(rules, start=1):
+		for position, row in enumerate(rule.get("apply_for", []), start=1):
+			label = f"Promotion Rule {index} Apply For row {position}"
+			doctype = row.get("apply_for_type")
+			if doctype not in ("Item", "Item Group"):
+				errors.append(f"{label} has an unsupported type.")
+				continue
+			if doctype == "Item" and (not isinstance(row.get("uom"), str) or not row["uom"].strip()):
+				errors.append(f"{label}: UOM is required when Apply For Type is Item.")
+			resolve(doctype, row.get("apply_for"), label)
+		for position, row in enumerate(rule.get("product_discount_slabs", []), start=1):
+			resolve(
+				"Item", row.get("free_product_id"),
+				f"Promotion Rule {index} Product Discount Slabs row {position}",
+			)
+	return references
 
 
 def _check_dependency_uuid(doctype: str, name: str | None, errors: list[str]):
@@ -394,37 +472,42 @@ def _resolve_supabase_uuid(doctype: str, name: str | None):
 	return None
 
 
-def _validate_product_business_and_eligibility(doc, errors: list[str]):
+def _validate_product_business_and_eligibility(doc, rules, references, errors: list[str]):
 	direct_items: set[str] = set()
+	selected_groups: set[str] = set()
 	eligible_groups: set[str] = set()
-	all_product_names: set[str] = set()
+	all_product_names = {
+		name for (doctype, _uuid), name in references.items() if doctype == "Item" and name
+	}
 
-	for row in doc.apply_for or []:
-		if row.apply_for_type == "Item" and row.apply_for:
-			direct_items.add(row.apply_for)
-			all_product_names.add(row.apply_for)
-		elif row.apply_for_type == "Item Group" and row.apply_for:
-			group_names = _descendant_item_groups(row.apply_for)
-			eligible_groups.update(group_names)
-			matching_items = frappe.get_all(
-				"Item",
-				filters={
-					"item_group": ["in", list(group_names)],
-					"custom_business_profile": doc.business_id,
-					"custom_is_publish": 1,
-				},
-				fields=["name"],
-				limit_page_length=1,
+	for rule in rules:
+		for row in rule.get("apply_for", []):
+			doctype, value = row.get("apply_for_type"), row.get("apply_for")
+			if doctype not in ("Item", "Item Group") or not isinstance(value, str):
+				continue
+			name = references.get((doctype, value))
+			if name:
+				(direct_items if doctype == "Item" else selected_groups).add(name)
+
+	for group in sorted(selected_groups):
+		group_names = _descendant_item_groups(group)
+		eligible_groups.update(group_names)
+		matching_items = frappe.get_all(
+			"Item",
+			filters={
+				"item_group": ["in", list(group_names)],
+				"custom_business_profile": doc.business_id,
+				"custom_is_publish": 1,
+			},
+			fields=["name"],
+			limit_page_length=1,
+		)
+		if not matching_items:
+			errors.append(
+				f"Item Group {group} and its child groups contain no published products "
+				f"assigned to Business Profile {doc.business_id}."
 			)
-			if not matching_items:
-				errors.append(
-					f"Item Group {row.apply_for} and its child groups contain no published products "
-					f"assigned to Business Profile {doc.business_id}."
-				)
 
-	for row in doc.product_discount_slabs or []:
-		if row.free_product:
-			all_product_names.add(row.free_product)
 	for row in doc.flash_banner_products or []:
 		if row.product:
 			all_product_names.add(row.product)
@@ -442,7 +525,7 @@ def _validate_product_business_and_eligibility(doc, errors: list[str]):
 		for row in doc.flash_banner_products or []:
 			item = item_data.get(row.product)
 			if item and row.product not in direct_items and item.item_group not in eligible_groups:
-				errors.append(f"Flash Banner Product {row.product} is not eligible through Apply For.")
+				errors.append(f"Flash Banner Product {row.product} is not eligible through Promotion Rules Apply For.")
 
 
 def _descendant_item_groups(group_name: str):
@@ -495,20 +578,7 @@ def _prepare_record(record):
 			}
 			for row in record.applicable_for or []
 		],
-		"apply_for": [
-			{
-				"apply_for_type": row.apply_for_type,
-				"apply_for": _resolve_supabase_uuid(row.apply_for_type, row.apply_for),
-				"limit_qty": flt(row.limit_qty),
-				"max_qty_per_order": flt(row.max_qty_per_order),
-				"max_qty_per_user": flt(row.max_qty_per_user),
-			}
-			for row in record.apply_for or []
-		],
-		"price_discount_slabs": [_price_slab_payload(row) for row in record.price_discount_slabs or []],
-		"product_discount_slabs": [
-			_product_slab_payload(row) for row in record.product_discount_slabs or []
-		],
+		"promotion_rules": _parse_promotion_rules(record.get("promotion_rules")),
 		"show_countdown": bool(record.show_countdown),
 		"show_sold_progress": bool(record.show_sold_progress),
 		"flash_banner_style": record.flash_banner_style,
@@ -535,37 +605,7 @@ def _prepare_record(record):
 		"maximum_cart_discount_amount": (
 			flt(record.maximum_cart_discount_amount) if record.maximum_cart_discount_amount else None
 		),
-		"disabled": record.disabled or False
-	}
-
-
-def _price_slab_payload(row):
-	value = flt(row.price_or_discount_value)
-	return {
-		"min_qty": flt(row.min_qty),
-		"max_qty": flt(row.max_qty) or None,
-		"min_amount": flt(row.min_amount),
-		"max_amount": flt(row.max_amount) or None,
-		"rate_or_discount": row.rate_or_discount,
-		"discount_percentage": value if row.rate_or_discount == "Discount Percentage" else 0,
-		"discount_amount": value if row.rate_or_discount == "Discount Amount" else 0,
-		"rate": value if row.rate_or_discount == "Rate" else 0,
-	}
-
-
-def _product_slab_payload(row):
-	item = _get_item_data(row.free_product)
-	return {
-		"min_qty": flt(row.min_qty),
-		"max_qty": flt(row.max_qty) or None,
-		"min_amount": flt(row.min_amount),
-		"max_amount": flt(row.max_amount) or None,
-		"free_product_id": _resolve_supabase_uuid("Item", row.free_product),
-		"free_product_unit": item.stock_uom,
-		"free_product_quantity": flt(row.free_product_qty),
-		"free_is_recursive": bool(row.is_recursive),
-		"recurse_for": flt(row.recurse_for),
-		"apply_recursion_over": flt(row.apply_recursion_over),
+		"disabled": record.disabled or False,
 	}
 
 

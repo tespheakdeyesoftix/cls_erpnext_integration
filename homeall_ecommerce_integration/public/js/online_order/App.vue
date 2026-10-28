@@ -11,6 +11,21 @@ import { useOrders } from "./composables/useOrders";
 const store = useOrders();
 let lastLink = '';
 let stopRoutes = () => {};
+function updateDetailOpen(open) {
+	store.state.detailOpen = open;
+	if (open) return;
+	const url = new URL(window.location.href);
+	if (url.pathname !== '/desk/online-order') return;
+	url.searchParams.delete('order');
+	url.searchParams.delete('homeall_event');
+	window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+	if (frappe.route_options) {
+		delete frappe.route_options.order;
+		delete frappe.route_options.homeall_event;
+	}
+	lastLink = '';
+}
+
 async function openLinkedOrder() {
 	const query = new URLSearchParams(window.location.search);
 	for (const key of ['order', 'homeall_event']) {
@@ -67,11 +82,12 @@ onUnmounted(() => {
 
 		<OrderPagination :store="store" />
 		<OrderDetailDialog
-			v-model="store.state.detailOpen"
+			:model-value="store.state.detailOpen"
 			:order="store.state.selectedOrder"
 			:history-loading="store.state.detailLoading"
 			:history-error="store.state.detailError"
 			:status-updating="store.state.statusUpdating"
+			@update:model-value="updateDetailOpen"
 			@refresh-history="store.fetchOrderStatusHistory"
 			@update-status="store.updateOrderStatus"
 		/>

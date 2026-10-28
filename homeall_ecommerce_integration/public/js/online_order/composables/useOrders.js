@@ -8,6 +8,7 @@ const state = reactive({
 	totalPages: 1,
 	startDate: "",
 	endDate: "",
+	searchId: "",
 	status: "",
 	loading: false,
 	error: "",
@@ -42,6 +43,7 @@ export function useOrders() {
 					start_date: state.startDate || null,
 					end_date: state.endDate || null,
 					status: state.status || null,
+					search_id: state.searchId.trim() || null,
 				},
 			});
 
@@ -70,6 +72,7 @@ export function useOrders() {
 		state.startDate = "";
 		state.endDate = "";
 		state.status = "";
+		state.searchId = "";
 		return applyFilters();
 	}
 

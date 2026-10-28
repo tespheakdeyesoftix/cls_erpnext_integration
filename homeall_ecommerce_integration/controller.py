@@ -15,7 +15,7 @@ def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 @frappe.whitelist()
-def  update_sync_status(doc: Document, method: str):
+def  update_sync_status(doc: Document, method: str, *args, **kwargs):
     if doc.doctype in ["Business Profile", "Business Type", "App User Type","App Promotion"]:    
         if doc.get("is_synced") == 1: 
             doc.db_set("is_synced", 0)

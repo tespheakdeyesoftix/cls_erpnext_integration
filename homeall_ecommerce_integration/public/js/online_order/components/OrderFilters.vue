@@ -26,6 +26,18 @@ function submit() {
 
 <template>
 	<form class="order-filters" @submit.prevent="submit">
+		<label class="filter-field">
+			<span>លេខបញ្ជាទិញ</span>
+			<input
+				v-model="state.searchId"
+				type="search"
+				name="order_search_id"
+				maxlength="64"
+				placeholder="Search order #"
+				autocomplete="off"
+				spellcheck="false"
+			/>
+		</label>
 		<div class="filter-field">
 			<span>ថ្ងៃចាប់ផ្តើម</span>
 			<DatePicker
@@ -60,7 +72,7 @@ function submit() {
 			<Button
 				type="button"
 				variant="outline"
-				:disabled="state.loading || (!state.startDate && !state.endDate && !state.status)"
+				:disabled="state.loading || (!state.searchId && !state.startDate && !state.endDate && !state.status)"
 				@click="$emit('clear')"
 			>
 				សម្អាត

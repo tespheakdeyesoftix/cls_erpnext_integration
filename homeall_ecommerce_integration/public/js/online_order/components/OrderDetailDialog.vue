@@ -3,6 +3,8 @@ import { computed, ref, watch } from "vue";
 import { Button, Dialog } from "../frappeUi";
 import DeliveryAddress from "./DeliveryAddress.vue";
 import OrderItems from "./OrderItems.vue";
+import OrderPaymentDetails from "./OrderPaymentDetails.vue";
+import OrderPromotions from "./OrderPromotions.vue";
 import OrderStatusHistory from "./OrderStatusHistory.vue";
 import OrderSummary from "./OrderSummary.vue";
 import OrderTotals from "./OrderTotals.vue";
@@ -84,6 +86,7 @@ function close() {
 				</header>
 				<div class="dialog-scroll">
 					<OrderSummary :order="order" />
+					<OrderPaymentDetails :order="order" />
 					<div class="status-management-grid">
 						<section class="detail-section status-editor">
 							<h4>ប្តូរស្ថានភាព</h4>
@@ -156,6 +159,7 @@ function close() {
 						</Button>
 					</div>
 					<OrderItems :items="order.items || []" :currency="order.currency" />
+					<OrderPromotions :promotions="order.applied_cart_promotions || []" :currency="order.currency" />
 					<div class="dialog-columns">
 						<DeliveryAddress :address="order.delivery_address_snapshot" />
 						<section class="detail-section">

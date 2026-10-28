@@ -11,6 +11,7 @@ const statusLabels = {
 	paid: "បានបង់ប្រាក់",
 	unpaid: "មិនទាន់បង់",
 	failed: "បរាជ័យ",
+	expired: "ផុតកំណត់",
 	refunded: "បានសងប្រាក់",
 	pay_on_delivery: "បង់ពេលទទួលទំនិញ",
 	synced: "បានធ្វើសមកាលកម្ម",
@@ -32,6 +33,7 @@ export const ORDER_STATUS_OPTIONS = [
 
 const paymentLabels = {
 	cash_on_delivery: "សាច់ប្រាក់ពេលទទួលទំនិញ",
+	aba_qr_pay: "ABA QR Pay",
 	bank_transfer: "ផ្ទេរប្រាក់តាមធនាគារ",
 	qr: "ស្កេន QR",
 	card: "កាត",
@@ -79,7 +81,7 @@ export function shortId(value) {
 }
 
 export function productName(item) {
-	return item?.product?.name || item?.product?.erp_item_code || shortId(item?.product_id);
+	return item?.product_name || item?.product?.name || item?.erp_item_code || item?.product?.erp_item_code || shortId(item?.product_id);
 }
 
 export function itemUnitPrice(item) {
@@ -87,5 +89,40 @@ export function itemUnitPrice(item) {
 }
 
 export function itemTotal(item) {
-	return Number(item?.total ?? item?.amount ?? itemUnitPrice(item) * Number(item?.quantity || 0));
+	return Number(item?.line_total ?? item?.total ?? item?.amount ?? itemUnitPrice(item) * Number(item?.quantity || 0));
+}
+
+export function formatQuantity(value) {
+	return new Intl.NumberFormat("km-KH", { maximumFractionDigits: 6 }).format(Number(value || 0));
+}
+
+export function isFreeItem(item) {
+	return item?.line_type === "free";
+}
+
+export function itemDiscountLabel(item, currency = "USD") {
+	switch (item.discount_type) {
+		case "percentage": return `បញ្ចុះតម្លៃ ${formatQuantity(item.discount_value)}%`;
+		case "fixed_amount": return `បញ្ចុះតម្លៃ ${formatMoney(item.discount_value, currency)} / ${item.uom || "ឯកតា"}`;
+		case "rate": return `តម្លៃពិសេស ${formatMoney(item.discount_value, currency)} / ${item.uom || "ឯកតា"}`;
+		case "free_product": return "ទំនិញឥតគិតថ្លៃ";
+		default: return "";
+	}
+}
+
+export function giftSource(item, items) {
+	const sourceId = item.source_product_id || item.pricing_snapshot?.source_product_id;
+	if (!sourceId) return "";
+	const sourceUom = item.source_uom || item.pricing_snapshot?.source_uom;
+	const source = items.find((line) => !isFreeItem(line) && line.product_id === sourceId && (!sourceUom || line.uom === sourceUom));
+	return [source ? productName(source) : sourceId, sourceUom].filter(Boolean).join(" · ");
+}
+
+export function giftQuantities(items) {
+	const quantities = new Map();
+	for (const item of items.filter(isFreeItem)) {
+		const uom = item.uom || "";
+		quantities.set(uom, (quantities.get(uom) || 0) + Number(item.quantity || 0));
+	}
+	return [...quantities].map(([uom, quantity]) => `${formatQuantity(quantity)} ${uom}`.trim()).join(" + ");
 }

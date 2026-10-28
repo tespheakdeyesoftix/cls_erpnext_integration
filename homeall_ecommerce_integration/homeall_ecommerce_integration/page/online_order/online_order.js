@@ -17,7 +17,7 @@ frappe.pages["online-order"].on_page_show = function (wrapper) {
 	$mount.empty();
 
 	frappe
-		.require(["online_order.bundle.js", "online_order.bundle.css"])
+		.require("online_order.bundle.js")
 		.then(() => {
 			if (!wrapper.onlineOrderVisible) return;
 			wrapper.onlineOrderApp?.destroy();

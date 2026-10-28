@@ -1,5 +1,7 @@
 import { createApp } from "vue";
 import App from "./App.vue";
+// Ship page and dialog styles with the JavaScript so they cannot load separately.
+import "./online_order.bundle.css";
 
 class OnlineOrderPage {
 	constructor({ wrapper }) {

@@ -9,6 +9,7 @@
  "field_order": [
   "apply_for_type",
   "apply_for",
+  "uom",
   "limit_qty",
   "max_qty_per_order",
   "max_qty_per_user"
@@ -28,6 +29,15 @@
    "in_list_view": 1,
    "label": "Apply For ",
    "options": "apply_for_type"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "UOM",
+   "mandatory_depends_on": "eval:doc.apply_for_type == 'Item'",
+   "options": "UOM",
+   "read_only_depends_on": "eval:doc.apply_for_type != 'Item'"
   },
   {
    "description": "Per Product, This field for Flash Sale ",

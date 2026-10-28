@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "build:online-order": "node scripts/build-online-order.mjs",
     "postinstall": "node scripts/patch-frappe-ui.mjs"
   },
   "dependencies": {

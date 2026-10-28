@@ -1,0 +1,660 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Supabase order table snapshots",
+  "description": "Reconstructed from repository migrations through 2026-10-28; not a live database introspection. Describes stored rows, not checkout request input. Amount equations and trigger behavior are documented but not enforced by JSON Schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "orders",
+    "order_items",
+    "order_promotions"
+  ],
+  "properties": {
+    "orders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/orders"
+      }
+    },
+    "order_items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/order_items"
+      }
+    },
+    "order_promotions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/order_promotions"
+      }
+    }
+  },
+  "$defs": {
+    "orders": {
+      "type": "object",
+      "description": "public.orders: full stored row. JSON Schema describes structure; SQL, foreign keys, totals, and triggers remain authoritative.",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Primary key; generated UUID.",
+          "format": "uuid"
+        },
+        "user_id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Customer profile.",
+          "format": "uuid",
+          "x-foreign-key": "public.profiles.id"
+        },
+        "erp_customer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "ERP customer identifier."
+        },
+        "status": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Fulfillment status.",
+          "enum": [
+            "pending",
+            "accepted",
+            "rejected",
+            "processing",
+            "out_for_delivery",
+            "delivered",
+            "completed",
+            "cancelled"
+          ],
+          "default": "pending"
+        },
+        "currency": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Three uppercase currency letters.",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "total_quantity": {
+          "type": "number",
+          "x-postgresql-type": "numeric(16,3)",
+          "description": "Sum of purchased transaction quantities; excludes gifts. Mixed UOMs are not converted into one stock quantity.",
+          "exclusiveMinimum": 0
+        },
+        "subtotal": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Sum of rounded quantity × regular base_unit_price for all rows, including gift valuation.",
+          "minimum": 0
+        },
+        "discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Product discounts plus allocated cart discounts, including gift valuation.",
+          "minimum": 0
+        },
+        "product_discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Sum of item product_discount_amount, including gifts.",
+          "minimum": 0
+        },
+        "cart_discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Sum of allocated item cart_discount_amount.",
+          "minimum": 0
+        },
+        "tax_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Tax total. Current checkout writes zero.",
+          "minimum": 0
+        },
+        "total_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "subtotal - discount_amount + tax_amount.",
+          "minimum": 0
+        },
+        "erp_order_number": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "Nullable, unique ERP order number."
+        },
+        "erp_sync_status": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "ERP synchronization status.",
+          "enum": [
+            "pending",
+            "processing",
+            "synced",
+            "failed",
+            "cancelled"
+          ],
+          "default": "pending"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Required checkout idempotency UUID; unique together with user_id.",
+          "format": "uuid"
+        },
+        "request_items": {
+          "type": "object",
+          "x-postgresql-type": "jsonb",
+          "description": "Internal persisted checkout request; contains purchased items and delivery/payment choices; omitted from order_document responses.",
+          "additionalProperties": true
+        },
+        "delivery_address_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "uuid",
+          "description": "Nullable in storage; required by current checkout. Insert trigger validates customer ownership and coordinates when set.",
+          "format": "uuid"
+        },
+        "delivery_address_snapshot": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-postgresql-type": "jsonb",
+          "description": "Immutable delivery-address snapshot.",
+          "additionalProperties": true
+        },
+        "payment_method": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Payment method.",
+          "enum": [
+            "cash_on_delivery",
+            "aba_qr_pay"
+          ],
+          "default": "cash_on_delivery"
+        },
+        "payment_status": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Payment state, independent of fulfillment and ERP sync.",
+          "enum": [
+            "pay_on_delivery",
+            "pending",
+            "paid",
+            "failed",
+            "expired",
+            "cancelled",
+            "refunded"
+          ],
+          "default": "pay_on_delivery"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "Nullable note, 1–500 characters when present.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "payment_transaction_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "Nullable unique payment transaction ID."
+        },
+        "payment_reference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "Provider payment reference."
+        },
+        "payment_qr_image_url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "Nullable HTTPS QR image URL.",
+          "pattern": "^https://[^\\s]+$"
+        },
+        "payment_expires_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "timestamptz",
+          "description": "Payment expiry.",
+          "format": "date-time"
+        },
+        "pricing_user_type_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "uuid",
+          "description": "User-type ID captured at checkout; no declared foreign key.",
+          "format": "uuid"
+        },
+        "pricing_user_type_name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "User-type name captured at checkout."
+        },
+        "created_at": {
+          "type": "string",
+          "x-postgresql-type": "timestamptz",
+          "description": "Creation time, defaults to now().",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "x-postgresql-type": "timestamptz",
+          "description": "Update time, defaults to now().",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "status",
+        "currency",
+        "total_quantity",
+        "subtotal",
+        "discount_amount",
+        "product_discount_amount",
+        "cart_discount_amount",
+        "tax_amount",
+        "total_amount",
+        "erp_sync_status",
+        "idempotency_key",
+        "request_items",
+        "payment_method",
+        "payment_status",
+        "created_at",
+        "updated_at"
+      ],
+      "x-sql-constraints": [
+        "subtotal between 0 and 1000000000000",
+        "total_amount = subtotal - discount_amount + tax_amount",
+        "unique(user_id,idempotency_key)",
+        "erp_order_number unique when non-null",
+        "payment_transaction_id unique when non-null"
+      ]
+    },
+    "order_items": {
+      "type": "object",
+      "description": "public.order_items: purchased and free lines are separate rows. A product can repeat within an order, including different UOMs or gifts.",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Primary key; generated UUID.",
+          "format": "uuid"
+        },
+        "order_id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Parent order; ON DELETE CASCADE.",
+          "format": "uuid",
+          "x-foreign-key": "public.orders.id"
+        },
+        "product_id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Product on this line.",
+          "format": "uuid",
+          "x-foreign-key": "public.products.id"
+        },
+        "business_id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Owning business; ON DELETE RESTRICT.",
+          "format": "uuid",
+          "x-foreign-key": "public.business_profiles.id"
+        },
+        "erp_item_code": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "ERP item code."
+        },
+        "erp_supplier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "ERP supplier identifier."
+        },
+        "product_name": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Product name captured at checkout."
+        },
+        "line_type": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Purchased line or separate gift line.",
+          "enum": [
+            "purchased",
+            "free"
+          ],
+          "default": "purchased"
+        },
+        "uom": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Transaction/selling UOM."
+        },
+        "quantity": {
+          "type": "number",
+          "x-postgresql-type": "numeric(12,3)",
+          "description": "Quantity in transaction UOM.",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "conversion_factor": {
+          "type": "number",
+          "x-postgresql-type": "numeric",
+          "description": "Transaction UOM to saved application base_uom factor.",
+          "exclusiveMinimum": 0,
+          "default": 1
+        },
+        "base_uom": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Application pricing reference UOM; not necessarily ERP Stock UOM."
+        },
+        "base_quantity": {
+          "type": "number",
+          "x-postgresql-type": "numeric",
+          "description": "quantity × conversion_factor; populated by insert trigger."
+        },
+        "source_product_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "uuid",
+          "description": "Purchased product that earned a gift; nullable on purchased lines.",
+          "format": "uuid",
+          "x-foreign-key": "public.products.id"
+        },
+        "source_uom": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "text",
+          "description": "UOM of the purchased line that earned this gift."
+        },
+        "product_price_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "uuid",
+          "description": "Referenced regular price; nullable for product fallback or if price was deleted.",
+          "format": "uuid",
+          "x-foreign-key": "public.product_prices.id"
+        },
+        "base_unit_price": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,6)",
+          "description": "Regular price per transaction UOM before product promotion."
+        },
+        "unit_price": {
+          "type": "number",
+          "x-postgresql-type": "numeric(14,2)",
+          "description": "Price per transaction UOM after product promotion, before cart discount.",
+          "minimum": 0
+        },
+        "discount_type": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Product-level benefit type; cart-only savings can retain none.",
+          "enum": [
+            "none",
+            "percentage",
+            "fixed_amount",
+            "rate",
+            "free_product"
+          ],
+          "default": "none"
+        },
+        "discount_value": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,6)",
+          "description": "Percentage; per-unit fixed reduction; final per-unit rate; or gift regular unit value, depending on discount_type.",
+          "minimum": 0,
+          "default": 0
+        },
+        "product_discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "round(quantity × base_unit_price,2) - round(quantity × unit_price,2).",
+          "minimum": 0
+        },
+        "cart_discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Allocated cart discount for this line.",
+          "minimum": 0
+        },
+        "discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "product_discount_amount + cart_discount_amount.",
+          "minimum": 0
+        },
+        "tax_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Line tax. Current checkout writes zero.",
+          "minimum": 0
+        },
+        "line_total": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "round(quantity × unit_price,2) - cart_discount_amount + tax_amount.",
+          "minimum": 0
+        },
+        "pricing_snapshot": {
+          "type": "object",
+          "x-postgresql-type": "jsonb",
+          "description": "Extensible immutable pricing audit. Nested promotion_id, promotion_benefit, pricing_tier, free_product_rule, cart_promotion, conversion_factor and base_uom vary by scenario.",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "created_at": {
+          "type": "string",
+          "x-postgresql-type": "timestamptz",
+          "description": "Creation time, defaults to now().",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "order_id",
+        "product_id",
+        "business_id",
+        "erp_item_code",
+        "product_name",
+        "line_type",
+        "uom",
+        "quantity",
+        "conversion_factor",
+        "base_uom",
+        "base_quantity",
+        "base_unit_price",
+        "unit_price",
+        "discount_type",
+        "discount_value",
+        "product_discount_amount",
+        "cart_discount_amount",
+        "discount_amount",
+        "tax_amount",
+        "line_total",
+        "pricing_snapshot",
+        "created_at"
+      ],
+      "x-sql-constraints": [
+        "product_discount_amount = round(quantity*base_unit_price,2)-round(quantity*unit_price,2)",
+        "discount_amount = product_discount_amount + cart_discount_amount",
+        "cart_discount_amount <= round(quantity*unit_price,2)",
+        "line_total = round(quantity*unit_price,2)-cart_discount_amount+tax_amount",
+        "capture_order_uom BEFORE INSERT reads conversion_factor/base_uom/source_uom from pricing_snapshot and computes base_quantity",
+        "prepare_order_item_discount_components BEFORE INSERT reads discount components from pricing_snapshot",
+        "capture_order_cart_promotion AFTER INSERT accumulates order discount components and captures cart promotion audit"
+      ]
+    },
+    "order_promotions": {
+      "type": "object",
+      "description": "public.order_promotions: additional audit table needed for cart-level campaigns.",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Primary key.",
+          "format": "uuid"
+        },
+        "order_id": {
+          "type": "string",
+          "x-postgresql-type": "uuid",
+          "description": "Parent order; ON DELETE CASCADE.",
+          "format": "uuid",
+          "x-foreign-key": "public.orders.id"
+        },
+        "promotion_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-postgresql-type": "uuid",
+          "description": "Promotion reference; ON DELETE SET NULL.",
+          "format": "uuid",
+          "x-foreign-key": "public.promotions.id"
+        },
+        "promotion_name": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Saved campaign name."
+        },
+        "application_scope": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Which purchased lines receive the cart benefit.",
+          "enum": [
+            "eligible_cart",
+            "entire_cart"
+          ]
+        },
+        "eligibility_basis": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Quantity or amount qualification.",
+          "enum": [
+            "quantity",
+            "amount"
+          ]
+        },
+        "qualifying_quantity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-postgresql-type": "numeric(16,3)",
+          "description": "Qualifying transaction quantity."
+        },
+        "qualifying_amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Qualifying regular line amount."
+        },
+        "benefit_base_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Post-product-discount amount used for the cart benefit.",
+          "minimum": 0
+        },
+        "discount_type": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Cart-level discount type.",
+          "enum": [
+            "percentage",
+            "fixed_amount"
+          ]
+        },
+        "discount_value": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,6)",
+          "description": "Percent or total fixed cart discount.",
+          "exclusiveMinimum": 0
+        },
+        "discount_amount": {
+          "type": "number",
+          "x-postgresql-type": "numeric(18,2)",
+          "description": "Actual cart discount.",
+          "exclusiveMinimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "x-postgresql-type": "text",
+          "description": "Three uppercase currency letters.",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "pricing_snapshot": {
+          "type": "object",
+          "x-postgresql-type": "jsonb",
+          "description": "Immutable campaign audit, including current rule and slab indexes.",
+          "additionalProperties": true
+        },
+        "created_at": {
+          "type": "string",
+          "x-postgresql-type": "timestamptz",
+          "description": "Recorded time.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "order_id",
+        "promotion_name",
+        "application_scope",
+        "eligibility_basis",
+        "benefit_base_amount",
+        "discount_type",
+        "discount_value",
+        "discount_amount",
+        "currency",
+        "pricing_snapshot",
+        "created_at"
+      ],
+      "x-sql-constraints": [
+        "unique(order_id,promotion_id)"
+      ]
+    }
+  }
+}
