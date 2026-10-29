@@ -6,6 +6,7 @@ and use before_validate for legacy save_file/save_url and subsequently linked fi
 """
 
 import io
+import os
 from pathlib import PurePosixPath
 
 import frappe
@@ -140,6 +141,24 @@ class R2FileMixin(Document):
 			return
 		# Covers URL-only copies, temporary files linked later, and legacy file_manager.save_file.
 		old_url = self.file_url
+		try:
+			content = self.get_content()
+		except FileNotFoundError:
+			# Do not attempt a local-to-R2 upload when the local file is missing.
+			# Preserve the existing File document and URL.
+			frappe.log_error(
+				title="R2 Attachment: Local File Missing",
+				message=(
+					f"File: {self.name}\n"
+					f"File URL: {self.file_url}\n"
+					f"File path: {getattr(self, 'file_path', None)}\n"
+					f"Attached To: {self.attached_to_doctype} / "
+					f"{self.attached_to_name}\n"
+					"The local file was not found. R2 upload was skipped."
+				),
+			)
+			return
+
 		self.save_file(content=self.get_content())
 		if self.file_url != old_url:
 			self.flags.r2_previous_url = old_url
@@ -161,30 +180,78 @@ class R2FileMixin(Document):
 
 
 def sync_parent_attachments(doc, method=None):
-	"""Runs after core's wildcard on_update, which may link orphans using direct SQL.
+    """Sync eligible local attachments to R2 after the parent document updates.
 
-	These rows bypass File events. Save only eligible local attachments, and update
-	the in-memory parent too so the Desk response contains the newly assigned URL.
-	"""
-	if not enabled() or not doctype_folder(doc.doctype):
-		return
-	for name in frappe.get_all(
-		"File",
-		filters={"attached_to_doctype": doc.doctype, "attached_to_name": doc.name, "is_private": 0},
-		pluck="name",
-	):
-		file = frappe.get_doc("File", name)
-		if file.is_remote_file:
-			continue
-		old_url = file.file_url
-		file.save(ignore_permissions=True)
-		if file.file_url == old_url:
-			continue
-	# Core may have inserted/promoted a File before this hook and already changed its
-	# parent's DB field. Refresh the response's matching in-memory fields as well.
-	replacements = getattr(frappe.local, "r2_url_replacements", None) or {}
-	for row in attachment_rows(doc):
-		for df in row.meta.get("fields", {"fieldtype": ["in", ["Attach", "Attach Image"]]}):
-			new_url = replacements.get((row.doctype, row.name, df.fieldname, row.get(df.fieldname)))
-			if new_url and frappe.db.get_value(row.doctype, row.name, df.fieldname) == new_url:
-				row.set(df.fieldname, new_url)
+    Skip missing local files instead of allowing them to break the parent save.
+    Preserve the in-memory parent URL replacement behavior.
+    """
+    if not enabled() or not doctype_folder(doc.doctype):
+        return
+
+    for name in frappe.get_all(
+        "File",
+        filters={
+            "attached_to_doctype": doc.doctype,
+            "attached_to_name": doc.name,
+            "is_private": 0,
+        },
+        pluck="name",
+    ):
+        file_doc = frappe.get_doc("File", name)
+
+        # Already stored remotely: nothing to upload.
+        if file_doc.is_remote_file:
+            continue
+
+        # Resolve the standard public file path.
+        file_url = file_doc.file_url or ""
+
+        if not file_url.startswith("/files/"):
+            continue
+
+        file_path = frappe.get_site_path(
+            "public",
+            "files",
+            os.path.basename(file_url),
+        )
+
+        # Missing local file: log and skip.
+        # Do not call file_doc.save(), because Frappe validates the file on disk.
+        if not os.path.isfile(file_path):
+            frappe.log_error(
+                title="R2 Sync: Local Attachment Missing",
+                message=(
+                    f"File: {file_doc.name}\n"
+                    f"URL: {file_doc.file_url}\n"
+                    f"Expected path: {file_path}\n"
+                    f"Attached to: {file_doc.attached_to_doctype} / "
+                    f"{file_doc.attached_to_name}\n"
+                    "Synchronization skipped because the local file is missing."
+                ),
+            )
+            continue
+
+        old_url = file_doc.file_url
+        file_doc.save(ignore_permissions=True)
+
+        if file_doc.file_url == old_url:
+            continue
+
+    # Keep the in-memory parent fields synchronized with database changes.
+    replacements = getattr(frappe.local, "r2_url_replacements", None) or {}
+
+    for row in attachment_rows(doc):
+        for df in row.meta.get(
+            "fields",
+            {"fieldtype": ["in", ["Attach", "Attach Image"]]},
+        ):
+            new_url = replacements.get(
+                (row.doctype, row.name, df.fieldname, row.get(df.fieldname))
+            )
+
+            if (
+                new_url
+                and frappe.db.get_value(row.doctype, row.name, df.fieldname)
+                == new_url
+            ):
+                row.set(df.fieldname, new_url)
