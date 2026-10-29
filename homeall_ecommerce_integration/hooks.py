@@ -226,7 +226,10 @@ doc_events = {
         for doctype in SYNC_DOCTYPES
     },
     "Item Price":{
-        "on_update": "homeall_ecommerce_integration.controller.update_item",
+        "on_update": "homeall_ecommerce_integration.controller.item_price_update",
+    },
+    "Item":{
+        "on_update": "homeall_ecommerce_integration.controller.item_update",
     },
     "File": {
         "after_insert": "homeall_ecommerce_integration.file_attachment.after_insert",
@@ -241,6 +244,7 @@ r2_upload_doctypes = {
     "App Promotion": {"folder": "promotion"},
     "Item Group": {"folder": "other"},
     "Brand": {"folder": "other"},
+    "App User":{"folder":"profiles"}
 }
 
 extend_doctype_class = {

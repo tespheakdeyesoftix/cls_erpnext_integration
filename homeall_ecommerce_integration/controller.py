@@ -27,7 +27,7 @@ def  update_sync_status(doc: Document, method: str, *args, **kwargs):
             doc.db_set("custom_is_synced", 0)
         
 @frappe.whitelist()
-def update_item(doc: Document, method: str):
+def item_price_update(doc: Document, method: str):
     if doc.doctype == "Item Price": 
         if doc.price_list == "Standard Selling":
             item = frappe.get_doc("Item", doc.item_code)      
@@ -43,3 +43,11 @@ def update_item(doc: Document, method: str):
                 if item.standard_rate != prices[0].price_list_rate:
                     item.db_set("standard_rate", prices[0].price_list_rate)
                     item.db_set("custom_is_synced", 0)
+
+
+@frappe.whitelist()
+def item_update(doc: Document, method: str):
+    translated_text = ""
+    if doc.custom_translation:
+        translated_text = " ".join([x.title for x in doc.custom_translation if x.get("title")])
+    doc.custom_search_text = f"{doc.name} { doc.item_name} {doc.custom_app_product_name} {translated_text}" 

@@ -14,7 +14,13 @@ class AppHaslanguage(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-
+		is_synced: DF.Check
+		language: DF.Link | None
+		parent: DF.Data
+		parent_id: DF.Data | None
+		parentfield: DF.Data
+		parenttype: DF.Data
+		title: DF.Data | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "App Has language"

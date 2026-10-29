@@ -764,7 +764,7 @@ def item_to_product(item, supabase_id, currency):
         "name": item.custom_app_product_name or item.item_name ,
         "name_km": item.custom_app_product_name_kh_ or (item.custom_app_product_name or item.item_name) ,
         "name_zh": item.custom_app_product_name_cn_ or (item.custom_app_product_name or item.item_name) ,
-        "description": item.description or None,
+        "description":item.custom_product_description or item.description or None,
         "brand": item.brand or None,
         "price": item.standard_rate or 0,
         "uom": item.stock_uom or None,
@@ -783,7 +783,8 @@ def item_to_product(item, supabase_id, currency):
         "min_order_quantity": item.custom_min_order_quantity or 1,
         "show_free_delivery_badge": item.custom_show_free_delivery_badge or 0,
         "show_cod_badge": item.custom_show_cod_badge or 0,
-        "availability_status": item.custom_availability_status or "in_stock"
+        "availability_status": item.custom_availability_status or "in_stock",
+        "search_text":item.custom_search_text or f"{item.name} {item.item_name}"
     } 
     
     
