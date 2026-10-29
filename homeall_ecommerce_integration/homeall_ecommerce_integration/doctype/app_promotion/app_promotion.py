@@ -13,8 +13,8 @@ class AppPromotion(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
-		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_has_language.app_has_language import AppHaslanguage
 		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_promotion_applicable_for.app_promotion_applicable_for import AppPromotionApplicableFor
+		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.app_translations.app_translations import AppTranslations
 		from homeall_ecommerce_integration.homeall_ecommerce_integration.doctype.flash_sale_banner_product.flash_sale_banner_product import FlashSaleBannerProduct
 
 		amended_from: DF.Link | None
@@ -49,7 +49,7 @@ class AppPromotion(Document):
 		start_date: DF.Datetime
 		terms_and_conditions: DF.MarkdownEditor | None
 		title: DF.Data
-		translation: DF.Table[AppHaslanguage]
+		translation: DF.Table[AppTranslations]
 		upcoming_display: DF.Literal["label", "countdown"]
 	# end: auto-generated types
 

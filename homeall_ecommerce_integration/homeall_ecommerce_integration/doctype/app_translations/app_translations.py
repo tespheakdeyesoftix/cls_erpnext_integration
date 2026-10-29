@@ -5,7 +5,7 @@
 from frappe.model.document import Document
 
 
-class AppHaslanguage(Document):
+class AppTranslations(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -23,4 +23,4 @@ class AppHaslanguage(Document):
 		title: DF.Data | None
 	# end: auto-generated types
 
-	_DOCTYPE_NAME = "App Has language"
+	_DOCTYPE_NAME = "App Translations"
