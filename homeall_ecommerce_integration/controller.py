@@ -27,8 +27,8 @@ def  update_sync_status(doc: Document, method: str, *args, **kwargs):
             doc.db_set("custom_is_synced", 0)
     
     if doc.doctype == "Item":
+        # 1
         item_update(doc, method)
-        _delete_or_un_publish_product_on_supabase(doc, method)
         
     elif doc.doctype == "Item Price":
         item_price_update(doc, method)
@@ -53,14 +53,48 @@ def item_price_update(doc: Document, method: str):
 
 
 @frappe.whitelist()
-def item_update(doc: Document, method: str):
-    translated_text = ""
-    if doc.custom_translation:
-        translated_text = " ".join([x.title for x in doc.custom_translation if x.get("title")])
-    doc.custom_search_text = f"{doc.name} { doc.item_name} {doc.custom_app_product_name} {translated_text}" 
+def item_update(doc: Document, method: str = None):
+    translated_text = " ".join(
+        x.title
+        for x in (doc.custom_translation or [])
+        if x.get("title")
+    )
+
+    # Update translation parent_id,is_synced
+    if doc.custom_supabase_id:
+        for x in (doc.custom_translation or []):
+            if x.get("parent_id") != doc.custom_supabase_id:
+                x.db_set(
+                    "parent_id",
+                    doc.custom_supabase_id,
+                    update_modified=False
+                )
+                
+            x.db_set(
+                "is_synced",
+                0,
+                update_modified=False
+            )
+
+    # Build search text
+    search_text = " ".join(
+        str(value)
+        for value in [
+            doc.name,
+            doc.item_name,
+            doc.custom_app_product_name,
+            translated_text
+        ]
+        if value
+    )
+
+    # Update only if changed
+    if doc.custom_search_text != search_text:
+        doc.db_set(
+            "custom_search_text",
+            search_text,
+            update_modified=False
+        )
     
-def _delete_or_un_publish_product_on_supabase(doc: Document, method: str):
-    if doc.doctype == "Item" and doc.custom_supabase_id :
-        from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import sync_per_product_queues
-        sync_per_product_queues(item_code=doc.name, disabled=doc.disabled)    
+
     

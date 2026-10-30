@@ -556,8 +556,6 @@ def _prepare_record(record):
 	return {
 		"id": record.name,
 		"name": record.title,
-		"name_km": record.title_km or record.title,
-		"name_zh": record.title_zh or record.title,
 		"description": record.description or "",
 		"photo_url": _public_photo_url(record.photo),
 		"start_date": _promotion_timestamp(record.start_date, record.promotion_type, is_end=False),

@@ -6,6 +6,7 @@ from homeall_ecommerce_integration.controller import is_valid_uuid,slugify
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import fn_sync_to_supabase as sync
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import app_promotion_sync as app_promotion
 from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import sync_item_price as item_price
+from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1 import sync_app_translation as translation
 from postgrest.exceptions import APIError
 
 init_supabase = sync.init_supabase
@@ -306,6 +307,7 @@ def sync_products(name: str = None, batch_size: int = 100):
         SELECT *
         FROM `tabItem`
         WHERE IFNULL(custom_is_synced, 0) = 0
+        and disabled = 0
         AND custom_business_profile IS NOT NULL
         AND TRIM(custom_business_profile) != ''
     """
@@ -474,6 +476,10 @@ def sync_products(name: str = None, batch_size: int = 100):
                     update_modified=False,
                 )
                 
+                
+                # update translation parent_id and is_synced
+                translation.sync_to_supabase_queues(parenttype="Item", parent=item_data["name"])
+                
             frappe.db.commit()
             total_synced += len(batch_items)
             
@@ -578,8 +584,7 @@ def upsert_item_group(group,visited=None):
             parent_supabase_id,
         )
         
-        sup = init_supabase()
-        
+        sup = init_supabase()        
         # Upsert even if Frappe says the group is already synced.
         (
             sup.table("item_groups")
@@ -589,6 +594,10 @@ def upsert_item_group(group,visited=None):
             )
             .execute()
         )
+        
+        
+        # update translation parent_id and is_synced
+        translation.sync_to_supabase_queues(parenttype="Item Group", parent=group_name["name"])
         
         # Update Frappe only after a successful request.
         frappe.db.set_value(
@@ -822,8 +831,6 @@ def prepare_item_group_data(item_group, supabase_id, parent_supabase_id):
         "id": supabase_id,
         "parent_id": parent_supabase_id,
         "name": item_group.name,
-        "name_km": item_group.custom_item_group_name_km or item_group.name,
-        "name_zh": item_group.custom_item_group_name_zh or item_group.name,
         "image_url": item_group.image,
         "sort_order": item_group.custom_sort_order,
         "is_new": bool(item_group.custom_is_new),
@@ -878,8 +885,6 @@ def item_to_product(item, supabase_id, currency):
         "item_group_id": str(item.item_group_id) if item.item_group_id else None,
         "erp_item_code": item.item_code,
         "name": item.custom_app_product_name or item.item_name ,
-        "name_km": item.custom_app_product_name_kh_ or (item.custom_app_product_name or item.item_name) ,
-        "name_zh": item.custom_app_product_name_cn_ or (item.custom_app_product_name or item.item_name) ,
         "description":item.custom_product_description or item.description or None,
         "brand": item.brand or None,
         "price": item.standard_rate or 0,

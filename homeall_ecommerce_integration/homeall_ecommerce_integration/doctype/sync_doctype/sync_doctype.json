@@ -15,14 +15,14 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Sync DocType",
-   "link_filters": "[[\"DocType\",\"name\",\"in\",[\"App User Type\",\"Business Type\",\"Business Profile\",\"Brand\",\"Item Group\",\"Item\",\"Item Price\",\"Price List\"]]]",
+   "link_filters": "[[\"DocType\",\"name\",\"in\",[\"App User Type\",\"Business Type\",\"Business Profile\",\"Brand\",\"Item Group\",\"Item\",\"Item Price\",\"Price List\",\"App Translations\"]]]",
    "options": "DocType"
   }
  ],
  "grid_page_length": 50,
  "istable": 1,
  "links": [],
- "modified": "2026-10-27 11:42:37.066229",
+ "modified": "2026-10-30 11:53:23.200310",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "Sync DocType",

@@ -1,0 +1,150 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "UUID",
+ "creation": "2026-10-30 11:08:30.133511",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "name1",
+  "app_targets",
+  "starts_at",
+  "ends_at",
+  "priority",
+  "display_seconds",
+  "skip_delay_second",
+  "frequency",
+  "action_type",
+  "action_url",
+  "action_open_in",
+  "column_break_wiiu",
+  "artwork",
+  "photo",
+  "note"
+ ],
+ "fields": [
+  {
+   "allow_on_submit": 1,
+   "fieldname": "name1",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "app_targets",
+   "fieldtype": "Select",
+   "label": "App Targets",
+   "options": "HomeAll\nDSKU\nBoth"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "starts_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Starts At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ends_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Ends At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority"
+  },
+  {
+   "default": "5",
+   "fieldname": "display_seconds",
+   "fieldtype": "Int",
+   "label": "Display Seconds"
+  },
+  {
+   "default": "3",
+   "fieldname": "skip_delay_second",
+   "fieldtype": "Int",
+   "label": "Skip Delay Second"
+  },
+  {
+   "default": "once_per_day",
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "label": "Frequency",
+   "options": "every_launch\nonce_per_session\nonce_per_day\nonce_per_campaign"
+  },
+  {
+   "fieldname": "column_break_wiiu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "Photo"
+  },
+  {
+   "default": "deeplink",
+   "fieldname": "action_type",
+   "fieldtype": "Select",
+   "label": "Action Type",
+   "options": "deeplink\nweb"
+  },
+  {
+   "fieldname": "action_url",
+   "fieldtype": "Data",
+   "label": "Action Url"
+  },
+  {
+   "default": "webview",
+   "fieldname": "action_open_in",
+   "fieldtype": "Select",
+   "label": "Action Open In",
+   "options": "webview\nexternal_browser"
+  },
+  {
+   "fieldname": "artwork",
+   "fieldtype": "JSON",
+   "label": "Artwork Medias"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  }
+ ],
+ "grid_page_length": 50,
+ "image_field": "photo",
+ "links": [],
+ "make_attachments_public": 1,
+ "modified": "2026-10-30 14:22:29.087219",
+ "modified_by": "Administrator",
+ "module": "Homeall Ecommerce Integration",
+ "name": "App Open Ads",
+ "naming_rule": "UUID",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

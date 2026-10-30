@@ -12,6 +12,7 @@ from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync imp
 	sync_item_prices_queues,
 	sync_app_user_types_queues, 
  	sync_price_list_queues,
+  	translation
 )
 
 class SyncHistory(Document): 
@@ -28,6 +29,7 @@ class SyncHistory(Document):
 			"Price List",
 			"Item Price",
    			"App User Type",
+			"App Translations"
 		]
 		DOCTYPES = [d for d in SYNC_DOCTYPES if d in [x.sync_doctype for x in self.sync_doctypes]]  
 		for doc in DOCTYPES:
@@ -47,3 +49,10 @@ class SyncHistory(Document):
 				sync_item_prices_queues()
 			elif doc == "App User Type":
 				sync_app_user_types_queues()
+    
+			elif doc == "App User Type":
+				sync_app_user_types_queues()
+    
+			elif doc == "App Translations":
+       
+				translation.sync_to_supabase_queues()

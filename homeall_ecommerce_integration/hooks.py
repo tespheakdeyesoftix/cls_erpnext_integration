@@ -238,6 +238,7 @@ r2_upload_doctypes = {
     "Item": {"folder": "items"},
     "App Promotion": {"folder": "promotion"},
     "Item Group": {"folder": "other"},
+    "App Open Ads": {"folder": "other"},
     "Brand": {"folder": "other"},
     "App User":{"folder":"profiles"}
 }
