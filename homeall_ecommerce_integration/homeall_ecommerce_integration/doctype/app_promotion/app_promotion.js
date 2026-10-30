@@ -5,16 +5,23 @@ const PROMOTION_SERVICE =
 	"homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.app_promotion_sync";
 
 const PROMOTION_RULE_TABLES = [
-	{ fieldname: "apply_for", label: "Apply For", doctype: "App Promotion Apply For" },
+	{
+		fieldname: "apply_for",
+		label: "Apply For",
+		doctype: "App Promotion Apply For",
+		list_columns: { apply_for_type: 180, apply_for: 280, uom: 140, limit_qty: 120 },
+	},
 	{
 		fieldname: "price_discount_slabs",
 		label: "Price Discount Slabs",
 		doctype: "App Promotion Price Discount Slabs",
+		list_columns: { min_qty: 100, max_qty: 100, rate_or_discount: 220, price_or_discount_value: 200 },
 	},
 	{
 		fieldname: "product_discount_slabs",
 		label: "Product Discount Slabs",
 		doctype: "App Promotion Product Discount Slabs",
+		list_columns: { free_product: 280, min_qty: 100, free_product_qty: 180, unit: 140 },
 	},
 ];
 
@@ -348,8 +355,6 @@ function promotion_rule_table_fields(table, pending_defaults) {
 			fields.splice(fields.findIndex((field) => field.fieldname === "apply_for") + 1, 0, uom);
 		}
 		Object.assign(uom, {
-			in_list_view: 1,
-			width: 160,
 			reqd: 0,
 			mandatory_depends_on: "eval:doc.apply_for_type == 'Item'",
 			read_only_depends_on: "eval:doc.apply_for_type != 'Item'",
@@ -382,19 +387,6 @@ function promotion_rule_table_fields(table, pending_defaults) {
 		};
 	}
 	if (table.fieldname === "product_discount_slabs") {
-		const widths = {
-			free_product: 240,
-			free_product_qty: 180,
-			unit: 160,
-			is_recursive: 120,
-			recurse_for: 300,
-			apply_recursion_over: 320,
-		};
-		for (const field of fields) {
-			if (["Column Break", "Section Break", "Tab Break"].includes(field.fieldtype)) continue;
-			field.in_list_view = 1;
-			field.width = widths[field.fieldname] || field.width || 120;
-		}
 		fields.find((field) => field.fieldname === "free_product").change = function () {
 			const row = promotion_rule_control_row(this);
 			const product = row.free_product;
@@ -410,6 +402,11 @@ function promotion_rule_table_fields(table, pending_defaults) {
 			pending_defaults.add(pending);
 			pending.finally(() => pending_defaults.delete(pending));
 		};
+	}
+	// Limit the grid preview; keep every field available in Frappe's row editor.
+	for (const field of fields) {
+		field.in_list_view = table.list_columns[field.fieldname] ? 1 : 0;
+		if (field.in_list_view) field.width = table.list_columns[field.fieldname];
 	}
 	return fields;
 }
@@ -460,10 +457,9 @@ async function show_promotion_rule_dialog(frm, index) {
 			fieldtype: "Table",
 			fieldname: table.fieldname,
 			label: __(table.label),
-			in_place_edit: true,
-			description: table.fieldname === "product_discount_slabs"
-				? __("Scroll horizontally to view and edit all product discount fields.")
-				: undefined,
+			// Allow Frappe to show its pencil icon and expand the complete row form.
+			in_place_edit: false,
+			description: __("Click the edit icon in a row to edit all fields."),
 			// Use independent dialog fields/data, without attaching a child DocType to the grid.
 			fields: promotion_rule_table_fields(table, pending_defaults),
 			data: values[table.fieldname],

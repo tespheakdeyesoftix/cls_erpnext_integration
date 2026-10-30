@@ -25,6 +25,13 @@ def  update_sync_status(doc: Document, method: str, *args, **kwargs):
             
         if doc.get("custom_is_synced") == 1: 
             doc.db_set("custom_is_synced", 0)
+    
+    if doc.doctype == "Item":
+        item_update(doc, method)
+        _delete_or_un_publish_product_on_supabase(doc, method)
+        
+    elif doc.doctype == "Item Price":
+        item_price_update(doc, method)
         
 @frappe.whitelist()
 def item_price_update(doc: Document, method: str):
@@ -51,3 +58,9 @@ def item_update(doc: Document, method: str):
     if doc.custom_translation:
         translated_text = " ".join([x.title for x in doc.custom_translation if x.get("title")])
     doc.custom_search_text = f"{doc.name} { doc.item_name} {doc.custom_app_product_name} {translated_text}" 
+    
+def _delete_or_un_publish_product_on_supabase(doc: Document, method: str):
+    if doc.doctype == "Item" and doc.custom_supabase_id :
+        from homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync import sync_per_product_queues
+        sync_per_product_queues(item_code=doc.name, disabled=doc.disabled)    
+    

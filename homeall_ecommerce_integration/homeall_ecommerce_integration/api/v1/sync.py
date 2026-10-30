@@ -522,7 +522,6 @@ def sync_products(name: str = None, batch_size: int = 100):
         "total_products": len(product_data_list),
     }
 
-
 def sync_products_queues(): 
     frappe.enqueue(
         "homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync.sync_products", # python function or a module path as string
@@ -619,8 +618,125 @@ def upsert_item_group(group,visited=None):
 
     finally:
         visited.discard(group_name)
-  
 
+
+#product sync status when item is disabled or deleted 
+@frappe.whitelist(methods=["POST"])
+def sync_per_product(item_code: str, disabled: int = 0):
+    if not item_code:
+        frappe.throw("Item code is required.")
+        
+    item = frappe.get_doc("Item", item_code)
+    if not item.custom_supabase_id:
+        frappe.throw(
+            f"Item {item_code} does not have a Supabase ID."
+        )
+
+    if not disabled:
+        return sync_products(name=item_code, batch_size=1)    
+    
+    
+    try:
+        sup = init_supabase()
+
+        # Execute Supabase RPC
+        response = (
+            sup.rpc(
+                "delete_product",
+                {
+                    "product_id": item.custom_supabase_id
+                }
+            )
+            .execute()
+        )
+
+        # Supabase response data
+        result = response.data
+
+        # Check explicit failure returned by RPC
+        if result is False or (
+            isinstance(result, dict)
+            and result.get("success") is False
+        ):
+            frappe.log_error(
+                title="Supabase Product Unpublish Failed",
+                message=(
+                    f"Item Code: {item_code}\n"
+                    f"Supabase ID: {item.custom_supabase_id}\n"
+                    f"Response: {result}"
+                )
+            )
+
+            return {
+                "success": False,
+                "message": f"Failed to unpublish product {item_code}.",
+                "data": result
+            }
+
+        # Update Frappe only after successful RPC
+        item.db_set("custom_is_synced", 1)
+        return {
+            "success": True,
+            "message": f"Product {item_code} unpublished on Supabase.",
+            "data": result
+        }
+
+    except APIError as e:
+        # Supabase PostgREST API error
+        error_code = getattr(e, "code", None)
+        error_message = getattr(e, "message", str(e))
+        error_details = getattr(e, "details", None)
+        error_hint = getattr(e, "hint", None)
+
+        frappe.log_error(
+            title="Supabase RPC API Error",
+            message=(
+                f"Item Code: {item_code}\n"
+                f"Supabase ID: {item.custom_supabase_id}\n"
+                f"Error Code: {error_code}\n"
+                f"Error Message: {error_message}\n"
+                f"Details: {error_details}\n"
+                f"Hint: {error_hint}\n\n"
+                f"Traceback:\n{frappe.get_traceback()}"
+            )
+        )
+
+        return {
+            "success": False,
+            "error_type": "SUPABASE_API_ERROR",
+            "error_code": error_code,
+            "message": error_message,
+            "details": error_details,
+            "hint": error_hint
+        }
+
+    except Exception:
+        # Network, timeout, initialization, or unexpected error
+        frappe.log_error(
+            title="Supabase Product Unpublish Exception",
+            message=(
+                f"Item Code: {item_code}\n"
+                f"Supabase ID: {item.custom_supabase_id}\n\n"
+                f"{frappe.get_traceback()}"
+            )
+        )
+
+        return {
+            "success": False,
+            "error_type": "INTERNAL_ERROR",
+            "message": "Unable to unpublish product on Supabase."
+        }
+
+def sync_per_product_queues(item_code: str, disabled: int = 0):
+    frappe.enqueue(
+        "homeall_ecommerce_integration.homeall_ecommerce_integration.api.v1.sync.sync_per_product", # python function or a module path as string
+        queue="long", # one of short, default, long
+        job_name=f"sync_per_product_{item_code}", # specify a job name
+        item_code=item_code,
+        disabled=disabled,
+        # enqueue_after_commit=True,
+    )
+    
 ## Prepare Data for Supabase  
 # prepare data of app user type
 def prepare_price_list_data(record,supabase_id):

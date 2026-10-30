@@ -225,12 +225,7 @@ doc_events = {
         }
         for doctype in SYNC_DOCTYPES
     },
-    "Item Price":{
-        "on_update": "homeall_ecommerce_integration.controller.item_price_update",
-    },
-    "Item":{
-        "on_update": "homeall_ecommerce_integration.controller.item_update",
-    },
+ 
     "File": {
         "after_insert": "homeall_ecommerce_integration.file_attachment.after_insert",
         "on_update": "homeall_ecommerce_integration.file_attachment.on_update",
