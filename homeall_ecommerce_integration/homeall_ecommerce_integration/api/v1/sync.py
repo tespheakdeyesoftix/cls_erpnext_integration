@@ -597,7 +597,8 @@ def upsert_item_group(group,visited=None):
         
         
         # update translation parent_id and is_synced
-        translation.sync_to_supabase_queues(parenttype="Item Group", parent=group_name["name"])
+
+        translation.sync_to_supabase_queues(parenttype="Item Group", parent=group_name)
         
         # Update Frappe only after a successful request.
         frappe.db.set_value(

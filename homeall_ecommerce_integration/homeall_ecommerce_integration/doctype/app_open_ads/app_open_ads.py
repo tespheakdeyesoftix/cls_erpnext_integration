@@ -33,6 +33,7 @@ class AppOpenAds(Document):
 		action_url: DF.Data | None
 		app_targets: DF.Literal["HomeAll", "DSKU", "Both"]
 		artwork: DF.JSON | None
+		display_mode: DF.Literal["fullscreen", "modal"]
 		display_seconds: DF.Int
 		ends_at: DF.Datetime
 		frequency: DF.Literal["every_launch", "once_per_session", "once_per_day", "once_per_campaign"]
@@ -137,6 +138,7 @@ def prepare_record(doc):
 		"starts_at": starts_at.isoformat(),
 		"ends_at": ends_at.isoformat(),
 		"priority": cint(doc.get("priority")),
+		"display_mode": doc.get("display_mode") or "fullscreen",
 		"display_seconds": display_seconds,
 		"skip_delay_seconds": skip_delay_seconds,
 		"frequency": doc.get("frequency") or "once_per_day",

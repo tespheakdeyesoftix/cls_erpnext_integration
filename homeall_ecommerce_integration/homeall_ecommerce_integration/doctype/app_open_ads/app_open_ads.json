@@ -11,6 +11,7 @@
   "app_targets",
   "starts_at",
   "ends_at",
+  "display_mode",
   "priority",
   "display_seconds",
   "skip_delay_second",
@@ -116,13 +117,20 @@
    "fieldname": "note",
    "fieldtype": "Small Text",
    "label": "Note"
+  },
+  {
+   "default": "fullscreen",
+   "fieldname": "display_mode",
+   "fieldtype": "Select",
+   "label": "Display Mode",
+   "options": "fullscreen\nmodal"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-10-30 14:22:29.087219",
+ "modified": "2026-10-30 15:12:35.633264",
  "modified_by": "Administrator",
  "module": "Homeall Ecommerce Integration",
  "name": "App Open Ads",
