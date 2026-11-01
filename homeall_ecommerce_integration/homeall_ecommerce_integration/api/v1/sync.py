@@ -306,15 +306,16 @@ def sync_products(name: str = None, batch_size: int = 100):
     sql = """
         SELECT *
         FROM `tabItem`
-        WHERE IFNULL(custom_is_synced, 0) = 0
+        WHERE 1 = 1
         and disabled = 0
         AND custom_business_profile IS NOT NULL
         AND TRIM(custom_business_profile) != ''
     """
     if name:
-        sql += " AND item_code = %(item_code)s"
+        sql += " AND name = %(item_code)s "
         items = frappe.db.sql(sql, {"item_code": name}, as_dict=True)
     else:   
+        sql += " AND IFNULL(custom_is_synced, 0) = 0 "
         items = frappe.db.sql(sql, as_dict=True)  
  
     
